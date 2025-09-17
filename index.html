@@ -17,10 +17,10 @@
             position="-2 4 -3"
         ></a-entity>
 
-        <a-entity id="rig" movement-controls position="0 1.6 0">
+        <a-entity id="rig" movement-controls="controls: gamepad" position="0 1.6 0">
             <a-entity camera look-controls wasd-controls="enabled: false"></a-entity>
             
-            <a-entity meta-touch-controls="hand: left"></a-entity>
+            <a-entity meta-touch-controls="hand: left" thumbstick-logging></a-entity>
             <a-entity meta-touch-controls="hand: right"></a-entity>
         </a-entity>
 
