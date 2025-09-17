@@ -58,7 +58,7 @@
                 right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).negate();
 
                 // Déplacement selon joystick
-                rigPos.addScaledVector(forward, -dy * 0.05 * speed);
+                rigPos.addScaledVector(forward, dy * 0.05 * speed);
                 rigPos.addScaledVector(right, dx * 0.05 * speed);
                 }
             });
