@@ -8,6 +8,7 @@
             <img id="sky" src="sky1.png">
         </a-assets>
 
+
         <a-entity light="type: ambient; color: #ffffff; intensity: 0.5"></a-entity>
         <a-entity light="type: directional; intensity: 0.8; castShadow: true" position="-2 4 -3"></a-entity>
 
@@ -30,8 +31,9 @@
         </a-scene>
 
         <script>
+
         AFRAME.registerComponent('joystick-movement', {
-            schema: { speed: {type: 'number', default: 2} },
+            schema: { speed: { type: 'number', default: 2 } },
             init: function () {
             const rig = document.querySelector('#rig');
             const head = document.querySelector('#head');
@@ -42,31 +44,56 @@
                 const dx = evt.detail.x; // gauche/droite
                 const dy = evt.detail.y; // avant/arrière
 
-                // On ne bouge que si le joystick est assez incliné
                 if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
                 let rigPos = rig.object3D.position;
 
-                // On récupère la direction de la tête (caméra)
                 const camDir = new THREE.Vector3();
                 head.object3D.getWorldDirection(camDir);
-                camDir.y = 0; // On ignore l'inclinaison verticale
+                camDir.y = 0;
                 camDir.normalize();
 
-                // Calcul des axes avant et droite
                 const forward = camDir;
                 const right = new THREE.Vector3();
                 right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).negate();
 
-                // Déplacement selon joystick
-                rigPos.addScaledVector(forward, dy * 0.05 * speed);
+                rigPos.addScaledVector(forward, -dy * 0.05 * speed);
                 rigPos.addScaledVector(right, dx * 0.05 * speed);
                 }
             });
             }
         });
 
-        // On attache le script au rig
-        document.querySelector('#rig').setAttribute('joystick-movement', '');
+        AFRAME.registerComponent('snap-turn', {
+            schema: {
+            angle: { type: 'number', default: 30 }, // angle de rotation par incrément
+            cooldown: { type: 'number', default: 300 } // délai entre deux rotations (ms)
+            },
+            init: function () {
+            const rig = document.querySelector('#rig');
+            const rightHand = document.querySelector('#rightHand');
+            const angle = this.data.angle;
+            const cooldown = this.data.cooldown;
+            let lastTurn = 0;
+
+            rightHand.addEventListener('thumbstickmoved', function (evt) {
+                const now = Date.now();
+                if (now - lastTurn < cooldown) return;
+
+                const x = evt.detail.x; // joystick horizontal
+                if (x > 0.8) {
+                rig.object3D.rotation.y -= THREE.MathUtils.degToRad(angle);
+                lastTurn = now;
+                } else if (x < -0.8) {
+                rig.object3D.rotation.y += THREE.MathUtils.degToRad(angle);
+                lastTurn = now;
+                }
+            });
+            }
+        });
+
+        // On attache les composants au rig
+        document.querySelector('#rig').setAttribute('joystick-movement', 'speed: 2');
+        document.querySelector('#rig').setAttribute('snap-turn', 'angle: 30; cooldown: 300');
         </script>
     </body>
 </html>
