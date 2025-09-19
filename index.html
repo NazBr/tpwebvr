@@ -2,6 +2,7 @@
     <head>
         <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/aframe-physics-system@3.3.0/dist/aframe-physics-system.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/super-hands@4.0.5/dist/aframe-super-hands.min.js"></script>
     </head>
     <body>
         <a-scene physics="gravity: -9.81" shadow="type: pcfsoft">
@@ -9,34 +10,54 @@
             <img id="sky" src="sky1.png">
         </a-assets>
 
-
+        <!-- Lumières -->
         <a-entity light="type: ambient; color: #ffffff; intensity: 0.5"></a-entity>
         <a-entity light="type: directional; intensity: 0.8; castShadow: true" position="-2 4 -3"></a-entity>
 
+        <!-- Rig -->
         <a-entity id="rig" position="0 0.58 0">
-
             <a-entity id="head" camera look-controls wasd-controls="enabled: false"></a-entity>
 
-            <a-entity id="leftHand" meta-touch-controls="hand: left" raycaster="lineColor: #fff; lineOpacity: 0.7; far: 10" grabber></a-entity>
+            <!-- Mains avec super-hands -->
+            <a-entity id="leftHand"
+                    hand-controls="hand: left; handModelStyle: lowPoly; color: #ffcccc"
+                    physics-collider
+                    super-hands>
+            </a-entity>
 
-            <a-entity id="rightHand" meta-touch-controls="hand: right" raycaster="lineColor: #fff; lineOpacity: 0.7; far: 10" grabber></a-entity>
+            <a-entity id="rightHand"
+                    hand-controls="hand: right; handModelStyle: lowPoly; color: #ccccff"
+                    physics-collider
+                    super-hands>
+            </a-entity>
         </a-entity>
 
-        <a-box id="grabBox" dynamic-body="mass:1; 
-                            friction:0.8; 
-                            restitution:0.1; 
-                            linearDamping:0.05; 
-                            angularDamping:0.99" 
-                            scale="0.5 0.5 0.5" 
-                            position="0 0.33424 -3" rotation="0 45 0" color="#4CC3D9" shadow="cast: true"></a-box>
+        <!-- Objet manipulable -->
+        <a-box id="grabBox"
+                dynamic-body="mass:1; friction:0.8; restitution:0.1; linearDamping:0.05; angularDamping:0.99"
+                grabbable
+                stretchable
+                draggable
+                scale="0.5 0.5 0.5"
+                position="0 0.33424 -3"
+                rotation="0 45 0"
+                color="#4CC3D9"
+                shadow="cast: true">
+        </a-box>
 
-        <a-plane position="0 0 -4" rotation="-90 0 0" width="10" height="10" color="#7BC8A4" shadow="receive: true"></a-plane>
+        <!-- Sol -->
+        <a-plane position="0 0 -4"
+                rotation="-90 0 0"
+                width="10" height="10"
+                color="#7BC8A4"
+                shadow="receive: true">
+        </a-plane>
 
         <a-sky src="#sky"></a-sky>
         </a-scene>
 
         <script>
-
+        // Joystick déplacement
         AFRAME.registerComponent('joystick-movement', {
             schema: { speed: { type: 'number', default: 2 } },
             init: function () {
@@ -46,8 +67,8 @@
             const speed = this.data.speed;
 
             leftHand.addEventListener('thumbstickmoved', function (evt) {
-                const dx = evt.detail.x; // gauche/droite
-                const dy = evt.detail.y; // avant/arrière
+                const dx = evt.detail.x;
+                const dy = evt.detail.y;
 
                 if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
                 let rigPos = rig.object3D.position;
@@ -68,10 +89,11 @@
             }
         });
 
+        // Snap-turn
         AFRAME.registerComponent('snap-turn', {
             schema: {
-            angle: { type: 'number', default: 30 }, // angle de rotation par incrément
-            cooldown: { type: 'number', default: 300 } // délai entre deux rotations (ms)
+            angle: { type: 'number', default: 30 },
+            cooldown: { type: 'number', default: 300 }
             },
             init: function () {
             const rig = document.querySelector('#rig');
@@ -84,7 +106,7 @@
                 const now = Date.now();
                 if (now - lastTurn < cooldown) return;
 
-                const x = evt.detail.x; // joystick horizontal
+                const x = evt.detail.x;
                 if (x > 0.8) {
                 rig.object3D.rotation.y -= THREE.MathUtils.degToRad(angle);
                 lastTurn = now;
@@ -96,27 +118,7 @@
             }
         });
 
-        AFRAME.registerComponent('grabber', {
-            init: function () {
-            this.grabbed = null;
-        
-            },
-            events: {
-            gripdown: function(evt) {
-                if (evt.currentTarget.components['raycaster'].intersections.length>0) {
-                this.grabbed = evt.currentTarget.components['raycaster'].intersections[0].object.el;
-                evt.currentTarget.object3D.attach(this.grabbed.object3D);          
-                }
-            }, gripup: function(evt) {
-            if (this.grabbed) {
-                this.el.sceneEl.object3D.attach(this.grabbed.object3D);
-                this.grabbed = null;
-            }
-            }
-        }
-        });
-
-        // On attache les composants au rig
+        // Attache les composants
         document.querySelector('#rig').setAttribute('joystick-movement', 'speed: 2');
         document.querySelector('#rig').setAttribute('snap-turn', 'angle: 30; cooldown: 300');
         </script>
