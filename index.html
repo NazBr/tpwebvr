@@ -41,14 +41,16 @@
         <a-entity id="rig" position="0 0.58 0">
             <a-entity id="head" camera look-controls wasd-controls="enabled: false"></a-entity>
 
-            <a-entity id="leftHand" meta-touch-controls="hand: left">
+           <a-entity id="leftHand" meta-touch-controls="hand: left">
                 <a-entity physics-collider
                             static-body="shape: sphere; sphereRadius: 0.03"
                             super-hands="colliderEvent: collisions;
                                         colliderEventProperty: els;
                                         colliderEndEvent: collisions;
                                         colliderEndEventProperty: clearedEls"
-                            collision-filter="group: hands; collidesWith: default; collisionForces: false">
+                            collision-filter="group: hands; collidesWith: default; collisionForces: false"
+                            grab-start-events="triggerdown: triggerdown; gripdown: gripdown"
+                            grab-end-events="triggerup: triggerup; gripup: gripup">
                 </a-entity>
             </a-entity>
 
@@ -59,9 +61,12 @@
                                         colliderEventProperty: els;
                                         colliderEndEvent: collisions;
                                         colliderEndEventProperty: clearedEls"
-                            collision-filter="group: hands; collidesWith: default; collisionForces: false">
+                            collision-filter="group: hands; collidesWith: default; collisionForces: false"
+                            grab-start-events="triggerdown: triggerdown; gripdown: gripdown"
+                            grab-end-events="triggerup: triggerup; gripup: gripup">
                 </a-entity>
             </a-entity>
+
         </a-entity>
 
         <!-- sol -->
