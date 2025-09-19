@@ -38,30 +38,29 @@
         <a-entity light="type: directional; intensity: 0.8; castShadow: true" position="-2 4 -3"></a-entity>
 
         <!-- rig & cam -->
-        <a-entity id="rig" position="0 0.25 0">
+        <a-entity id="rig" position="0 0.58 0">
             <a-entity id="head" camera look-controls wasd-controls="enabled: false"></a-entity>
 
-            <!-- mains Meta Touch avec super-hands -->
-            <a-entity id="leftHand"
-                    meta-touch-controls="hand: left"
-                    physics-collider
-                    static-body="shape: sphere; sphereRadius: 0.03"
-                    super-hands="colliderEvent: collisions;
-                                colliderEventProperty: els;
-                                colliderEndEvent: collisions;
-                                colliderEndEventProperty: clearedEls"
-                    collision-filter="group: hands; collidesWith: default; collisionForces: false">
+            <a-entity id="leftHand" meta-touch-controls="hand: left">
+                <a-entity physics-collider
+                            static-body="shape: sphere; sphereRadius: 0.03"
+                            super-hands="colliderEvent: collisions;
+                                        colliderEventProperty: els;
+                                        colliderEndEvent: collisions;
+                                        colliderEndEventProperty: clearedEls"
+                            collision-filter="group: hands; collidesWith: default; collisionForces: false">
+                </a-entity>
             </a-entity>
 
-            <a-entity id="rightHand"
-                    meta-touch-controls="hand: right"
-                    physics-collider
-                    static-body="shape: sphere; sphereRadius: 0.03"
-                    super-hands="colliderEvent: collisions;
-                                colliderEventProperty: els;
-                                colliderEndEvent: collisions;
-                                colliderEndEventProperty: clearedEls"
-                    collision-filter="group: hands; collidesWith: default; collisionForces: false">
+            <a-entity id="rightHand" meta-touch-controls="hand: right">
+                <a-entity physics-collider
+                            static-body="shape: sphere; sphereRadius: 0.03"
+                            super-hands="colliderEvent: collisions;
+                                        colliderEventProperty: els;
+                                        colliderEndEvent: collisions;
+                                        colliderEndEventProperty: clearedEls"
+                            collision-filter="group: hands; collidesWith: default; collisionForces: false">
+                </a-entity>
             </a-entity>
         </a-entity>
 
