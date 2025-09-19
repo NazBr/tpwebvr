@@ -1,9 +1,10 @@
 <html>
     <head>
         <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/aframe-physics-system@3.3.0/dist/aframe-physics-system.min.js"></script>
     </head>
     <body>
-        <a-scene shadow="type: pcfsoft">
+        <a-scene physics="gravity: -9.81" shadow="type: pcfsoft">
         <a-assets>
             <img id="sky" src="sky1.png">
         </a-assets>
@@ -16,14 +17,18 @@
 
             <a-entity id="head" camera look-controls wasd-controls="enabled: false"></a-entity>
 
-            <a-entity id="leftHand" meta-touch-controls="hand: left"></a-entity>
+            <a-entity id="leftHand" meta-touch-controls="hand: left" raycaster="lineColor: #fff; lineOpacity: 0.7; far: 10" grabber></a-entity>
 
-            <a-entity id="rightHand" meta-touch-controls="hand: right"></a-entity>
+            <a-entity id="rightHand" meta-touch-controls="hand: right" raycaster="lineColor: #fff; lineOpacity: 0.7; far: 10" grabber></a-entity>
         </a-entity>
 
-        <a-box position="-1 0.5 -3" rotation="0 45 0" color="#4CC3D9" shadow="cast: true"></a-box>
-        <a-sphere position="0 1.25 -5" radius="1.25" color="#EF2D5E" shadow="cast: true"></a-sphere>
-        <a-cylinder position="1 0.75 -3" radius="0.5" height="1.5" color="#FFC65D" shadow="cast: true"></a-cylinder>
+        <a-box id="grabBox" dynamic-body="mass:1; 
+                            friction:0.8; 
+                            restitution:0.1; 
+                            linearDamping:0.05; 
+                            angularDamping:0.99" 
+                            scale="0.5 0.5 0.5" 
+                            position="0 0.33424 -3" rotation="0 45 0" color="#4CC3D9" shadow="cast: true"></a-box>
 
         <a-plane position="0 0 -4" rotation="-90 0 0" width="10" height="10" color="#7BC8A4" shadow="receive: true"></a-plane>
 
@@ -56,7 +61,7 @@
                 const right = new THREE.Vector3();
                 right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).negate();
 
-                rigPos.addScaledVector(forward, dy * 0.05 * speed);
+                rigPos.addScaledVector(forward, -dy * 0.05 * speed);
                 rigPos.addScaledVector(right, dx * 0.05 * speed);
                 }
             });
@@ -89,6 +94,26 @@
                 }
             });
             }
+        });
+
+        AFRAME.registerComponent('grabber', {
+            init: function () {
+            this.grabbed = null;
+        
+            },
+            events: {
+            gripdown: function(evt) {
+                if (evt.currentTarget.components['raycaster'].intersections.length>0) {
+                this.grabbed = evt.currentTarget.components['raycaster'].intersections[0].object.el;
+                evt.currentTarget.object3D.attach(this.grabbed.object3D);          
+                }
+            }, gripup: function(evt) {
+            if (this.grabbed) {
+                this.el.sceneEl.object3D.attach(this.grabbed.object3D);
+                this.grabbed = null;
+            }
+            }
+        }
         });
 
         // On attache les composants au rig
