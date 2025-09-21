@@ -47,7 +47,8 @@
             oculus-touch-controls="hand: left"
             super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
             sphere-collider="objects: .grabbable"
-            static-body="shape: sphere; sphereRadius: 0.03">
+            static-body="shape: sphere; sphereRadius: 0.03"
+            hide-hand-on-grab>
             </a-entity>
 
             <!-- Main droite -->
@@ -55,7 +56,8 @@
             oculus-touch-controls="hand: right"
             super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
             sphere-collider="objects: .grabbable"
-            static-body="shape: sphere; sphereRadius: 0.03">
+            static-body="shape: sphere; sphereRadius: 0.03"
+            hide-hand-on-grab>
             </a-entity>
         </a-entity>
 
@@ -71,6 +73,7 @@
                 dynamic-body="mass: 1; shape: box">
         </a-box>
 
+        <!-- Pistolet -->
         <a-entity id="gun"
                 class="grabbable"
                 gltf-model="#gun"
@@ -79,6 +82,7 @@
                 rotation="0 45 0"
                 dynamic-body="mass: 1; shape: box"
                 grabbable="usePhysics: only; startButtons: gripdown, squeezestart; endButtons: gripup, squeezeend"
+                fixed-grab="position: 0 0 -0.15; rotation: 0 90 0"
                 shadow="cast: true; receive: true">
         </a-entity>
 
@@ -138,6 +142,42 @@
                 lastTurn = now;
                 }
             });
+            }
+        });
+
+        // Hide hand when grabbing
+        AFRAME.registerComponent('hide-hand-on-grab', {
+            init: function () {
+                const hand = this.el;
+                hand.addEventListener('grab-start', () => {
+                    hand.setAttribute('visible', false);
+                });
+                hand.addEventListener('grab-end', () => {
+                    hand.setAttribute('visible', true);
+                });
+            }
+        });
+
+        // Fix grab offset
+        AFRAME.registerComponent('fixed-grab', {
+            schema: {
+                position: {type: 'vec3', default: {x:0, y:0, z:0}},
+                rotation: {type: 'vec3', default: {x:0, y:0, z:0}}
+            },
+            init: function () {
+                this.el.addEventListener('grab-start', (evt) => {
+                    const hand = evt.detail.hand;
+                    hand.object3D.attach(this.el.object3D);
+                    this.el.object3D.position.set(this.data.position.x, this.data.position.y, this.data.position.z);
+                    this.el.object3D.rotation.set(
+                        THREE.MathUtils.degToRad(this.data.rotation.x),
+                        THREE.MathUtils.degToRad(this.data.rotation.y),
+                        THREE.MathUtils.degToRad(this.data.rotation.z)
+                    );
+                });
+                this.el.addEventListener('grab-end', () => {
+                    this.el.sceneEl.object3D.attach(this.el.object3D);
+                });
             }
         });
         </script>
