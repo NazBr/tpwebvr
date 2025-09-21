@@ -2,95 +2,26 @@
 <html>
     <head>
         <meta charset="utf-8" />
-        <title>A-Frame — Grab Objects + Joystick VR</title>
+        <title>A-Frame — Grab + Fixed Orientation (Gun)</title>
 
         <!-- A-Frame -->
         <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
 
-        <!-- Supprimer grabbable natif -->
-        <script> if (AFRAME.components['grabbable']) delete AFRAME.components['grabbable']; </script>
+        <!-- Supprimer le composant grabbable natif (évite conflit avec super-hands) -->
+        <script> if (AFRAME.components && AFRAME.components['grabbable']) delete AFRAME.components['grabbable']; </script>
 
         <!-- aframe-extras (sphere-collider) -->
         <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.5.2/dist/aframe-extras.min.js"></script>
 
-        <!-- Physics system -->
+        <!-- Physics system (c-frame) -->
         <script src="https://cdn.jsdelivr.net/npm/@c-frame/aframe-physics-system@4.2.3/dist/aframe-physics-system.min.js"></script>
 
-        <!-- super-hands -->
+        <!-- Super-hands -->
         <script src="https://unpkg.com/super-hands@3.0.5/dist/super-hands.min.js"></script>
 
-        <style>body{margin:0}</style>
-    </head>
-    <body>
-        <a-scene
-        physics="gravity: -9.81"
-        shadow="type: pcfsoft"
-        renderer="antialias: true"
-        vr-mode-ui="enabled: true"
-        device-orientation-permission-ui="enabled: true">
-
-        <a-assets>
-            <img id="sky" src="sky1.png">
-            <a-asset-item id="gun" src="assets/scene.gltf"></a-asset-item>
-        </a-assets>
-
-        <!-- Lumières -->
-        <a-entity light="type: ambient; color: #ffffff; intensity: 0.5"></a-entity>
-        <a-entity light="type: directional; intensity: 0.8; castShadow: true" position="-2 4 -3"></a-entity>
-
-        <!-- RIG + caméra + mains -->
-        <a-entity id="rig" position="0 0.58 0" joystick-movement="speed: 2" snap-turn="angle: 30; cooldown: 300">
-            <a-entity id="head" camera look-controls wasd-controls="enabled: false"></a-entity>
-
-            <!-- Main gauche -->
-            <a-entity id="leftHand"
-            oculus-touch-controls="hand: left"
-            super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
-            sphere-collider="objects: .grabbable"
-            static-body="shape: sphere; sphereRadius: 0.03"
-            hide-hand-on-grab>
-            </a-entity>
-
-            <!-- Main droite -->
-            <a-entity id="rightHand"
-            oculus-touch-controls="hand: right"
-            super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
-            sphere-collider="objects: .grabbable"
-            static-body="shape: sphere; sphereRadius: 0.03"
-            hide-hand-on-grab>
-            </a-entity>
-        </a-entity>
-
-        <!-- Sol -->
-        <a-plane position="0 0 0" rotation="-90 0 0" width="20" height="20"
-            color="#7BC8A4" static-body shadow="receive: true"></a-plane>
-
-        <a-box id="table"
-                position="0.00742 0.51005 -2.98873"
-                scale="2 0.7 2"
-                color="#4CC3D9"
-                shadow="cast: true"
-                dynamic-body="mass: 1; shape: box">
-        </a-box>
-
-        <!-- Pistolet -->
-        <a-entity id="gun"
-                class="grabbable"
-                gltf-model="#gun"
-                position="-0.1556 2 -3.18823"
-                scale="2 2 2"
-                rotation="0 45 0"
-                dynamic-body="mass: 1; shape: box"
-                grabbable="usePhysics: only; startButtons: gripdown, squeezestart; endButtons: gripup, squeezeend"
-                fixed-grab="position: 0 0 -0.15; rotation: 0 90 0"
-                shadow="cast: true; receive: true">
-        </a-entity>
-
-        <a-sky src="#sky"></a-sky>
-        </a-scene>
-
+        <!-- Components (définis avant la scène pour être sûrs qu'ils existent au parsing) -->
         <script>
-        // joystick-movement 
+        // Déplacement joystick gauche
         AFRAME.registerComponent('joystick-movement', {
             schema: { speed: { type: 'number', default: 2 } },
             init: function () {
@@ -99,10 +30,10 @@
             const leftHand = document.querySelector('#leftHand');
             const speed = this.data.speed;
             const DEADZONE = 0.1;
+            if (!leftHand) return;
 
             leftHand.addEventListener('thumbstickmoved', function (evt) {
-                const dx = evt.detail.x;
-                const dy = evt.detail.y;
+                const dx = evt.detail.x, dy = evt.detail.y;
                 if (Math.abs(dx) < DEADZONE && Math.abs(dy) < DEADZONE) return;
 
                 const forward = new THREE.Vector3();
@@ -120,66 +51,240 @@
             }
         });
 
-        // snap-turn 
+        // Snap-turn (joystick droit)
         AFRAME.registerComponent('snap-turn', {
             schema: { angle: { type: 'number', default: 30 }, cooldown: { type: 'number', default: 300 } },
             init: function () {
             const rig = document.querySelector('#rig');
             const rightHand = document.querySelector('#rightHand');
-            const angle = this.data.angle;
-            const cooldown = this.data.cooldown;
+            const angle = this.data.angle, cooldown = this.data.cooldown;
             let lastTurn = 0;
+            if (!rightHand) return;
 
             rightHand.addEventListener('thumbstickmoved', function (evt) {
-                const now = Date.now();
-                if (now - lastTurn < cooldown) return;
-                const x = evt.detail.x;
-                if (x > 0.8) {
-                rig.object3D.rotation.y -= THREE.MathUtils.degToRad(angle);
+                const now = Date.now(), x = evt.detail.x;
+                if (Math.abs(x) < 0.8 || now - lastTurn < cooldown) return;
+                const rad = THREE.MathUtils.degToRad(angle);
+                if (x > 0.8)  rig.object3D.rotation.y -= rad;
+                else          rig.object3D.rotation.y += rad;
                 lastTurn = now;
-                } else if (x < -0.8) {
-                rig.object3D.rotation.y += THREE.MathUtils.degToRad(angle);
-                lastTurn = now;
-                }
             });
             }
         });
 
-        // Hide hand when grabbing
+        // Masque la main quand elle attrape (écoute les événements au niveau de la scène si besoin)
         AFRAME.registerComponent('hide-hand-on-grab', {
             init: function () {
-                const hand = this.el;
-                hand.addEventListener('grab-start', () => {
-                    hand.setAttribute('visible', false);
-                });
-                hand.addEventListener('grab-end', () => {
-                    hand.setAttribute('visible', true);
-                });
+            const hand = this.el;
+            const scene = this.el.sceneEl;
+
+            // Événements émis sur l'objet saisi incluent detail.hand -> on les capte via la scène
+            scene.addEventListener('grab-start', (evt) => {
+                if (!evt.detail) return;
+                if (evt.detail.hand === hand) {
+                hand.setAttribute('visible', 'false');
+                }
+            });
+            scene.addEventListener('grab-end', (evt) => {
+                if (!evt.detail) return;
+                if (evt.detail.hand === hand) {
+                hand.setAttribute('visible', 'true');
+                }
+            });
+
+            // fallback si l'événement est émis directement sur la main
+            hand.addEventListener('grab-start', () => hand.setAttribute('visible', 'false'));
+            hand.addEventListener('grab-end', () => hand.setAttribute('visible', 'true'));
             }
         });
 
-        // Fix grab offset
+        // fixed-grab : attache l'objet à un point de la main avec offset position/rotation fixe
+        // - position/rotation : valeurs par défaut (utilisées si pas de right/left spécifiques)
+        // - rightPosition/rightRotation / leftPosition/leftRotation : overrides pour chaque main
         AFRAME.registerComponent('fixed-grab', {
             schema: {
-                position: {type: 'vec3', default: {x:0, y:0, z:0}},
-                rotation: {type: 'vec3', default: {x:0, y:0, z:0}}
+            position: { type: 'vec3', default: { x: 0, y: 0, z: -0.15 } },
+            rotation: { type: 'vec3', default: { x: 0, y: 90, z: 0 } },
+            leftPosition: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
+            leftRotation: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
+            rightPosition: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
+            rightRotation: { type: 'vec3', default: { x: 0, y: 0, z: 0 } }
             },
             init: function () {
-                this.el.addEventListener('grab-start', (evt) => {
-                    const hand = evt.detail.hand;
-                    hand.object3D.attach(this.el.object3D);
-                    this.el.object3D.position.set(this.data.position.x, this.data.position.y, this.data.position.z);
-                    this.el.object3D.rotation.set(
-                        THREE.MathUtils.degToRad(this.data.rotation.x),
-                        THREE.MathUtils.degToRad(this.data.rotation.y),
-                        THREE.MathUtils.degToRad(this.data.rotation.z)
-                    );
-                });
-                this.el.addEventListener('grab-end', () => {
-                    this.el.sceneEl.object3D.attach(this.el.object3D);
-                });
+            this._grabPoint = null;
+            this._hadDynamic = null;
+            this._currentHand = null;
+            const el = this.el;
+
+            // helper pour savoir si override non nul
+            const isNonZeroVec = (v) => Math.abs(v.x) > 1e-6 || Math.abs(v.y) > 1e-6 || Math.abs(v.z) > 1e-6;
+
+            el.addEventListener('grab-start', (evt) => {
+                // evt.detail.hand doit contenir l'entité main
+                if (!evt.detail) return;
+                let hand = evt.detail.hand || evt.detail.handEl || evt.detail.handEntity;
+                if (!hand) return;
+
+                // si hand est un id (string), récupérer l'élément
+                if (typeof hand === 'string') {
+                const maybe = document.querySelector('#' + hand);
+                if (maybe) hand = maybe;
+                }
+                if (!hand || !hand.object3D) return;
+                const handEl = hand;
+
+                // choisir offsets : priorité aux right/left si définis (non nuls), sinon valeurs par défaut
+                let pos = this.data.position, rot = this.data.rotation;
+                const handId = (handEl.id || '').toLowerCase();
+                if (handId.includes('left') && isNonZeroVec(this.data.leftPosition)) {
+                pos = this.data.leftPosition; rot = this.data.leftRotation;
+                } else if (handId.includes('right') && isNonZeroVec(this.data.rightPosition)) {
+                pos = this.data.rightPosition; rot = this.data.rightRotation;
+                }
+
+                // créer (ou réutiliser) un point d'attache sur la main
+                const gpId = 'grabPoint-' + (el.id || Math.random().toString(36).substr(2, 6)) + '-' + (handEl.id || 'hand');
+                let gp = handEl.querySelector('#' + gpId);
+                if (!gp) {
+                gp = document.createElement('a-entity');
+                gp.setAttribute('id', gpId);
+                // pas besoin d'attributes HTML pour le moment, on positionne via object3D
+                handEl.appendChild(gp);
+                }
+
+                // position locale du point d'attache (par rapport à la main)
+                gp.object3D.position.set(pos.x, pos.y, pos.z);
+                gp.object3D.rotation.set(0, 0, 0);
+
+                // désactiver la physique pendant l'attachement (on retirera dynamic-body)
+                if (el.hasAttribute('dynamic-body')) {
+                this._hadDynamic = el.getAttribute('dynamic-body');
+                el.removeAttribute('dynamic-body');
+                }
+
+                // attacher l'objet au point d'attache (donc il suit position+rotation de la main)
+                gp.object3D.attach(el.object3D);
+
+                // position locale de l'objet = (0,0,0) sur le point d'attache ; rotation locale = rotation souhaitée (offset)
+                el.object3D.position.set(0, 0, 0);
+                el.object3D.rotation.set(
+                THREE.MathUtils.degToRad(rot.x),
+                THREE.MathUtils.degToRad(rot.y),
+                THREE.MathUtils.degToRad(rot.z)
+                );
+
+                // sauvegarder refs pour le release
+                this._grabPoint = gp;
+                this._currentHand = handEl;
+            });
+
+            el.addEventListener('grab-end', (evt) => {
+                // Remettre l'objet au niveau de la scène (pour que la physique reprenne)
+                try {
+                this.el.sceneEl.object3D.attach(this.el.object3D);
+                } catch (e) {
+                // fallback naïf si attach lève une exception
+                // rien de grave, on continue
+                }
+
+                // restaurer la physique (avec petite temporisation pour laisser la scene3D se stabiliser)
+                if (this._hadDynamic !== null) {
+                const saved = this._hadDynamic;
+                setTimeout(() => {
+                    this.el.setAttribute('dynamic-body', saved);
+                }, 50);
+                this._hadDynamic = null;
+                }
+
+                // supprimer le point d'attache créé sur la main (si on l'a créé)
+                if (this._grabPoint && this._currentHand) {
+                try {
+                    this._currentHand.removeChild(this._grabPoint);
+                } catch (e) {
+                    // fallback : remove via parentNode
+                    if (this._grabPoint.parentNode) this._grabPoint.parentNode.removeChild(this._grabPoint);
+                }
+                this._grabPoint = null;
+                this._currentHand = null;
+                }
+            });
             }
         });
         </script>
+
+        <style>body{margin:0}</style>
+    </head>
+
+    <body>
+        <a-scene
+        physics="gravity: -9.81"
+        shadow="type: pcfsoft"
+        renderer="antialias: true"
+        vr-mode-ui="enabled: true"
+        device-orientation-permission-ui="enabled: true"
+        >
+        <a-assets>
+            <img id="sky" src="sky1.png">
+            <!-- NOTE: asset id différent de l'entité pour éviter conflit d'id -->
+            <a-asset-item id="gunModel" src="assets/scene.gltf"></a-asset-item>
+        </a-assets>
+
+        <!-- Lumières -->
+        <a-entity light="type: ambient; color: #ffffff; intensity: 0.5"></a-entity>
+        <a-entity light="type: directional; intensity: 0.8; castShadow: true" position="-2 4 -3"></a-entity>
+
+        <!-- RIG + caméra + mains -->
+        <a-entity id="rig" position="0 0.58 0"
+                    joystick-movement="speed: 2"
+                    snap-turn="angle: 30; cooldown: 300">
+            <a-entity id="head" camera look-controls wasd-controls="enabled: false"></a-entity>
+
+            <!-- Main gauche -->
+            <a-entity id="leftHand"
+                    oculus-touch-controls="hand: left"
+                    super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
+                    sphere-collider="objects: .grabbable"
+                    static-body="shape: sphere; sphereRadius: 0.03"
+                    hide-hand-on-grab>
+            </a-entity>
+
+            <!-- Main droite -->
+            <a-entity id="rightHand"
+                    oculus-touch-controls="hand: right"
+                    super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
+                    sphere-collider="objects: .grabbable"
+                    static-body="shape: sphere; sphereRadius: 0.03"
+                    hide-hand-on-grab>
+            </a-entity>
+        </a-entity>
+
+        <!-- Sol -->
+        <a-plane position="0 0 0" rotation="-90 0 0" width="20" height="20"
+                color="#7BC8A4" static-body shadow="receive: true"></a-plane>
+
+        <a-box id="table"
+                position="0.00742 0.51005 -2.98873"
+                scale="2 0.7 2"
+                color="#4CC3D9"
+                shadow="cast: true"
+                dynamic-body="mass: 1; shape: box">
+        </a-box>
+
+        <!-- Pistolet : class .grabbable (sphere-collider recherche .grabbable) -->
+        <!-- fixed-grab properties : ajuste ici la position/rotation voulues dans la main -->
+        <a-entity id="gun"
+                    class="grabbable"
+                    gltf-model="#gunModel"
+                    position="-0.1556 2 -3.18823"
+                    scale="2 2 2"
+                    rotation="0 45 0"
+                    shadow="cast: true; receive: true"
+                    grabbable="usePhysics: only; startButtons: gripdown, squeezestart; endButtons: gripup, squeezeend"
+                    dynamic-body="mass: 1; shape: box"
+                    fixed-grab="position: 0 0 -0.15; rotation: 0 90 0; rightPosition: 0 0 -0.15; rightRotation: 0 90 0">
+        </a-entity>
+
+        <a-sky src="#sky"></a-sky>
+        </a-scene>
     </body>
 </html>
