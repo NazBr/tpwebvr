@@ -2,7 +2,6 @@
 <html>
     <head>
         <meta charset="utf-8" />
-        <title>A-Frame — Gun with Projectiles</title>
 
         <!-- A-Frame -->
         <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
@@ -22,11 +21,64 @@
         <style>body{margin:0}</style>
 
         <script>
-        /* === Composant tir de projectiles === */
+        /* --- joystick-movement --- */
+        AFRAME.registerComponent('joystick-movement', {
+            schema: { speed: { type: 'number', default: 2 } },
+            init: function () {
+            const rig = document.querySelector('#rig');
+            const head = document.querySelector('#head');
+            const leftHand = document.querySelector('#leftHand');
+            const speed = this.data.speed;
+            const DEADZONE = 0.1;
+
+            if (!leftHand) return;
+
+            leftHand.addEventListener('thumbstickmoved', function (evt) {
+                const dx = evt.detail.x, dy = evt.detail.y;
+                if (Math.abs(dx) < DEADZONE && Math.abs(dy) < DEADZONE) return;
+
+                const forward = new THREE.Vector3();
+                head.object3D.getWorldDirection(forward);
+                forward.y = 0; forward.normalize();
+
+                const right = new THREE.Vector3();
+                right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).negate();
+
+                const step = 0.05 * speed;
+                const rigPos = rig.object3D.position;
+                rigPos.addScaledVector(forward, dy * step);
+                rigPos.addScaledVector(right, dx * step);
+            });
+            }
+        });
+
+        /* --- snap-turn --- */
+        AFRAME.registerComponent('snap-turn', {
+            schema: { angle: { type: 'number', default: 30 }, cooldown: { type: 'number', default: 300 } },
+            init: function () {
+            const rig = document.querySelector('#rig');
+            const rightHand = document.querySelector('#rightHand');
+            const angle = this.data.angle, cooldown = this.data.cooldown;
+            let lastTurn = 0;
+
+            if (!rightHand) return;
+
+            rightHand.addEventListener('thumbstickmoved', function (evt) {
+                const now = Date.now(), x = evt.detail.x;
+                if (Math.abs(x) < 0.8 || now - lastTurn < cooldown) return;
+                const rad = THREE.MathUtils.degToRad(angle);
+                if (x > 0.8)  rig.object3D.rotation.y -= rad;
+                else          rig.object3D.rotation.y += rad;
+                lastTurn = now;
+            });
+            }
+        });
+
+        /* --- Composant tir de projectiles --- */
         AFRAME.registerComponent('gun-shoot', {
             schema: {
-            speed: { type: 'number', default: 10 },
-            offset: { type: 'vec3', default: {x: 0, y: 0, z: -0.5} } // sortie du canon
+            speed: { type: 'number', default: 15 },
+            offset: { type: 'vec3', default: {x: 0, y: 0, z: -0.5} }
             },
             init: function () {
             this.el.addEventListener('shoot', () => this.shootProjectile());
@@ -38,21 +90,17 @@
             projectile.setAttribute('color', 'red');
             projectile.setAttribute('shadow', 'cast: true');
 
-            // position du canon
             const gunObj = this.el.object3D;
             const offset = new THREE.Vector3(this.data.offset.x, this.data.offset.y, this.data.offset.z);
-            gunObj.localToWorld(offset); // convertir offset en coordonnées monde
+            gunObj.localToWorld(offset);
             projectile.setAttribute('position', `${offset.x} ${offset.y} ${offset.z}`);
 
-            // physique
             projectile.setAttribute('dynamic-body', 'mass:0.1; shape:sphere');
 
-            // calculer direction du tir (z négatif de l’objet)
             const dir = new THREE.Vector3(0,0,-1);
             dir.applyQuaternion(gunObj.quaternion);
             dir.normalize();
 
-            // attendre que le body existe, puis appliquer vélocité
             projectile.addEventListener('body-loaded', () => {
                 projectile.body.velocity.set(
                 dir.x * this.data.speed,
@@ -61,7 +109,6 @@
                 );
             });
 
-            // auto-détruire après 5s pour éviter pollution
             setTimeout(() => {
                 if (projectile.parentNode) projectile.parentNode.removeChild(projectile);
             }, 5000);
@@ -70,7 +117,7 @@
             }
         });
 
-        /* === Modification du toggle-hold pour déclencher le tir === */
+        /* --- toggle-hold (comme avant, simplifié ici) --- */
         AFRAME.registerComponent('toggle-hold', {
             schema: {
             position: { type: 'vec3', default: { x: 0, y: -0.02, z: -0.04 } },
@@ -124,14 +171,7 @@
             hand.addEventListener('gripdown', this._onGripDown);
             hand.addEventListener('triggerdown', this._onTriggerDown);
             },
-            _onGrabEnd: function (evt) {
-            const hand = evt.detail?.hand;
-            if (this._held && this._handEl === hand) {
-                if (this._grabPoint?.object3D) {
-                this._grabPoint.object3D.attach(this.el.object3D);
-                }
-            }
-            },
+            _onGrabEnd: function () {},
             _onGripDown: function (evt) {
             const hand = evt.target;
             if (!this._held || hand !== this._handEl) return;
@@ -146,18 +186,15 @@
             this._held = false;
             this._handEl = null;
             },
-            _onTriggerDown: function (evt) {
+            _onTriggerDown: function () {
             if (!this._held) return;
-
-            // 🔫 jouer le son
             this.el.components.sound.playSound();
-
-            // 🔫 tirer un projectile
             this.el.emit('shoot');
             }
         });
         </script>
     </head>
+
     <body>
         <a-scene physics="gravity:-9.81" shadow="type: pcfsoft">
         <a-assets>
@@ -170,14 +207,18 @@
         <a-entity light="type: ambient; intensity: 0.5"></a-entity>
         <a-entity light="type: directional; intensity: 0.8; castShadow: true" position="-2 4 -3"></a-entity>
 
-        <!-- Rig + mains -->
-        <a-entity id="rig" position="0 0.58 0">
-            <a-entity id="head" camera look-controls></a-entity>
+        <!-- RIG + caméra + mains -->
+        <a-entity id="rig" position="0 0.58 0"
+                    joystick-movement="speed: 2"
+                    snap-turn="angle: 30; cooldown: 300">
+            <a-entity id="head" camera look-controls wasd-controls="enabled: false"></a-entity>
+
             <a-entity id="leftHand"
                     oculus-touch-controls="hand: left"
                     super-hands
                     sphere-collider="objects: .grabbable"
                     static-body></a-entity>
+
             <a-entity id="rightHand"
                     oculus-touch-controls="hand: right"
                     super-hands
@@ -188,6 +229,15 @@
         <!-- Sol -->
         <a-plane rotation="-90 0 0" width="20" height="20"
                 color="#7BC8A4" static-body shadow="receive: true"></a-plane>
+
+        <!-- Table -->
+        <a-box id="table"
+                position="0 0.5 -3"
+                scale="2 0.7 2"
+                color="#4CC3D9"
+                shadow
+                dynamic-body="mass: 1; shape: box">
+        </a-box>
 
         <!-- Pistolet -->
         <a-entity id="gun"
