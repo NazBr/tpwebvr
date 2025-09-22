@@ -2,13 +2,14 @@
 <html>
     <head>
         <meta charset="utf-8" />
-        <title>A-Frame — Gun Grab + Shoot</title>
 
         <!-- A-Frame -->
         <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
 
         <!-- Supprimer grabbable natif -->
-        <script> if (AFRAME.components['grabbable']) delete AFRAME.components['grabbable']; </script>
+        <script>
+        if (AFRAME.components['grabbable']) delete AFRAME.components['grabbable'];
+        </script>
 
         <!-- aframe-extras (sphere-collider) -->
         <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.5.2/dist/aframe-extras.min.js"></script>
@@ -32,7 +33,6 @@
         <a-assets>
             <img id="sky" src="sky1.png">
             <a-asset-item id="gunModel" src="assets/scene.gltf"></a-asset-item>
-            <audio id="gunshot" src="assets/gunshot.mp3"></audio>
         </a-assets>
 
         <!-- Lumières -->
@@ -64,7 +64,7 @@
         <a-plane position="0 0 0" rotation="-90 0 0" width="20" height="20"
             color="#7BC8A4" static-body shadow="receive: true"></a-plane>
 
-        <!-- Table : supporte le pistolet mais pas de collider avec les mains -->
+        <!-- Table (supporte le pistolet mais pas de collisions avec les mains) -->
         <a-box id="table"
             position="0 0.5 -3"
             scale="2 0.7 2"
@@ -83,14 +83,13 @@
             dynamic-body="mass: 1; shape: box"
             toggle-hold="position: 0 -0.02 -0.04; rotation: 70 180 0"
             gun-shoot="speed: 15; offset: 0 0 -0.5">
-            <a-sound src="#gunshot" on="triggerdown"></a-sound>
         </a-entity>
 
         <a-sky src="#sky"></a-sky>
         </a-scene>
 
         <script>
-        // joystick-movement 
+        // joystick-movement
         AFRAME.registerComponent('joystick-movement', {
         schema: { speed: { type: 'number', default: 2 } },
         init: function () {
@@ -120,7 +119,7 @@
         }
         });
 
-        // snap-turn 
+        // snap-turn
         AFRAME.registerComponent('snap-turn', {
         schema: { angle: { type: 'number', default: 30 }, cooldown: { type: 'number', default: 300 } },
         init: function () {
@@ -145,7 +144,7 @@
         }
         });
 
-        // toggle-hold (fixed grab + maintien)
+        // toggle-hold : maintient + fixed grab + main invisible
         AFRAME.registerComponent('toggle-hold', {
         schema: {
             position: {type: 'vec3', default: {x:0, y:0, z:0}},
@@ -183,6 +182,8 @@
             THREE.MathUtils.degToRad(rot.z)
             );
 
+            hand.setAttribute('visible', false);
+
             this._held = true;
             this._handEl = hand;
 
@@ -191,28 +192,45 @@
         _onGripDown: function () {
             if (!this._held || !this._handEl) return;
 
-            this._handEl.removeEventListener('gripdown', this._onGripDown);
-
             this._handEl.sceneEl.object3D.attach(this.el.object3D);
-
             if (this._savedDynamic) {
             this.el.setAttribute('dynamic-body', this._savedDynamic);
             this._savedDynamic = null;
             }
+
+            this._handEl.setAttribute('visible', true);
+
+            this._handEl.removeEventListener('gripdown', this._onGripDown);
 
             this._held = false;
             this._handEl = null;
         }
         });
 
-        // Gun shoot (projectile + son)
+        // gun-shoot : tire une sphère quand on appuie sur la gâchette
         AFRAME.registerComponent('gun-shoot', {
         schema: {
             speed: {type: 'number', default: 10},
             offset: {type: 'vec3', default: {x:0, y:0, z:-0.5}}
         },
         init: function () {
-            this.el.addEventListener('triggerdown', () => {
+            this._onTriggerDown = this._onTriggerDown.bind(this);
+
+            this.el.addEventListener('grab-start', evt => {
+            const hand = evt.detail?.hand;
+            if (hand) {
+                hand.addEventListener('triggerdown', this._onTriggerDown);
+            }
+            });
+
+            this.el.addEventListener('grab-end', evt => {
+            const hand = evt.detail?.hand;
+            if (hand) {
+                hand.removeEventListener('triggerdown', this._onTriggerDown);
+            }
+            });
+        },
+        _onTriggerDown: function () {
             if (!this.el.components['toggle-hold']._held) return;
 
             const bullet = document.createElement('a-sphere');
@@ -229,7 +247,6 @@
             worldPos.add(offset);
 
             bullet.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
-
             bullet.setAttribute('dynamic-body', 'mass:0.1; shape:sphere; sphereRadius:0.03');
 
             this.el.sceneEl.appendChild(bullet);
@@ -240,8 +257,7 @@
             const velocity = dir.multiplyScalar(this.data.speed);
 
             bullet.addEventListener('body-loaded', () => {
-                bullet.body.velocity.set(velocity.x, velocity.y, velocity.z);
-            });
+            bullet.body.velocity.set(velocity.x, velocity.y, velocity.z);
             });
         }
         });
