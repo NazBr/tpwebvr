@@ -2,12 +2,13 @@
 <html>
     <head>
         <meta charset="utf-8" />
+        <title>A-Frame — Grab Toggle Hold (Gun)</title>
 
         <!-- A-Frame -->
         <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
 
         <!-- Supprimer grabbable natif -->
-        <script> if (AFRAME.components['grabbable']) delete AFRAME.components['grabbable']; </script>
+        <script> if (AFRAME.components && AFRAME.components['grabbable']) delete AFRAME.components['grabbable']; </script>
 
         <!-- aframe-extras (sphere-collider) -->
         <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.5.2/dist/aframe-extras.min.js"></script>
@@ -21,7 +22,7 @@
         <style>body{margin:0}</style>
 
         <script>
-        /* --- Déplacement joystick gauche --- */
+        /* --- joystick-movement --- */
         AFRAME.registerComponent('joystick-movement', {
             schema: { speed: { type: 'number', default: 2 } },
             init: function () {
@@ -51,7 +52,7 @@
             }
         });
 
-        /* --- Snap turn joystick droit --- */
+        /* --- snap-turn --- */
         AFRAME.registerComponent('snap-turn', {
             schema: { angle: { type: 'number', default: 30 }, cooldown: { type: 'number', default: 300 } },
             init: function () {
@@ -72,7 +73,7 @@
             }
         });
 
-        /* --- Cache la main quand elle attrape --- */
+        /* --- hide-hand-on-grab --- */
         AFRAME.registerComponent('hide-hand-on-grab', {
             init: function () {
             const hand = this.el;
@@ -84,65 +85,121 @@
             scene.addEventListener('grab-end', (evt) => {
                 if (evt.detail?.hand === hand) hand.setAttribute('visible', 'true');
             });
+
+            hand.addEventListener('grab-start', () => hand.setAttribute('visible', 'false'));
+            hand.addEventListener('grab-end', () => hand.setAttribute('visible', 'true'));
             }
         });
 
-        /* --- Fixed Grab simplifié (même offset pour toutes les mains) --- */
-        AFRAME.registerComponent('fixed-grab', {
+        /* --- toggle-hold --- */
+        AFRAME.registerComponent('toggle-hold', {
             schema: {
             position: { type: 'vec3', default: { x: 0, y: -0.02, z: -0.04 } },
             rotation: { type: 'vec3', default: { x: 70, y: 180, z: 0 } }
             },
             init: function () {
+            this._held = false;
+            this._handEl = null;
             this._grabPoint = null;
-            this._hadDynamic = null;
+            this._savedDynamic = null;
 
-            this.el.addEventListener('grab-start', (evt) => {
-                const hand = evt.detail?.hand;
-                if (!hand || !hand.object3D) return;
+            this._onGrabStart = this._onGrabStart.bind(this);
+            this._onGrabEnd = this._onGrabEnd.bind(this);
+            this._onGripDown = this._onGripDown.bind(this);
 
-                const pos = this.data.position;
-                const rot = this.data.rotation;
+            this.el.addEventListener('grab-start', this._onGrabStart);
+            this.el.addEventListener('grab-end', this._onGrabEnd);
+            },
 
-                // point d'attache
-                const gp = document.createElement('a-entity');
-                hand.appendChild(gp);
-                gp.object3D.position.set(pos.x, pos.y, pos.z);
+            remove: function () {
+            this._cleanupGrabPoint();
+            this.el.removeEventListener('grab-start', this._onGrabStart);
+            this.el.removeEventListener('grab-end', this._onGrabEnd);
+            if (this._handEl) {
+                this._handEl.removeEventListener('gripdown', this._onGripDown);
+            }
+            },
 
-                // enlever la physique
-                if (this.el.hasAttribute('dynamic-body')) {
-                this._hadDynamic = this.el.getAttribute('dynamic-body');
+            _onGrabStart: function (evt) {
+            const hand = evt.detail?.hand;
+            if (!hand || !hand.object3D) return;
+            if (this._held && this._handEl === hand) return;
+
+            if (this.el.hasAttribute('dynamic-body')) {
+                this._savedDynamic = this.el.getAttribute('dynamic-body');
                 this.el.removeAttribute('dynamic-body');
-                }
+            }
 
-                // attacher l'objet au point d'attache
-                gp.object3D.attach(this.el.object3D);
-                this.el.object3D.position.set(0,0,0);
-                this.el.object3D.rotation.set(
+            const gp = document.createElement('a-entity');
+            hand.appendChild(gp);
+            const pos = this.data.position;
+            gp.object3D.position.set(pos.x, pos.y, pos.z);
+
+            gp.object3D.attach(this.el.object3D);
+
+            const rot = this.data.rotation;
+            this.el.object3D.position.set(0, 0, 0);
+            this.el.object3D.rotation.set(
                 THREE.MathUtils.degToRad(rot.x),
                 THREE.MathUtils.degToRad(rot.y),
                 THREE.MathUtils.degToRad(rot.z)
+            );
+
+            this._held = true;
+            this._handEl = hand;
+            this._grabPoint = gp;
+
+            hand.addEventListener('gripdown', this._onGripDown);
+            },
+
+            _onGrabEnd: function (evt) {
+            const hand = evt.detail?.hand;
+            if (!hand) return;
+            if (this._held && this._handEl === hand) {
+                if (this._grabPoint && this._grabPoint.object3D) {
+                this._grabPoint.object3D.attach(this.el.object3D);
+                const rot = this.data.rotation;
+                this.el.object3D.position.set(0,0,0);
+                this.el.object3D.rotation.set(
+                    THREE.MathUtils.degToRad(rot.x),
+                    THREE.MathUtils.degToRad(rot.y),
+                    THREE.MathUtils.degToRad(rot.z)
                 );
-
-                this._grabPoint = gp;
-            });
-
-            this.el.addEventListener('grab-end', () => {
-                // remettre dans la scène
-                this.el.sceneEl.object3D.attach(this.el.object3D);
-
-                // restaurer la physique
-                if (this._hadDynamic) {
-                const saved = this._hadDynamic;
-                setTimeout(() => this.el.setAttribute('dynamic-body', saved), 50);
-                this._hadDynamic = null;
                 }
+            }
+            },
 
-                if (this._grabPoint && this._grabPoint.parentNode) {
+            _onGripDown: function (evt) {
+            if (!this._held || !this._handEl) return;
+            const handThatPressed = evt.target || evt.currentTarget;
+            if (handThatPressed !== this._handEl) return;
+
+            try {
+                this.el.sceneEl.object3D.attach(this.el.object3D);
+            } catch (e) {}
+
+            if (this._savedDynamic) {
+                const saved = this._savedDynamic;
+                setTimeout(() => {
+                this.el.setAttribute('dynamic-body', saved);
+                }, 20);
+                this._savedDynamic = null;
+            }
+
+            if (this._handEl) {
+                this._handEl.removeEventListener('gripdown', this._onGripDown);
+            }
+            this._cleanupGrabPoint();
+
+            this._held = false;
+            this._handEl = null;
+            },
+
+            _cleanupGrabPoint: function () {
+            if (this._grabPoint && this._grabPoint.parentNode) {
                 this._grabPoint.parentNode.removeChild(this._grabPoint);
                 this._grabPoint = null;
-                }
-            });
+            }
             }
         });
         </script>
@@ -154,8 +211,8 @@
         shadow="type: pcfsoft"
         renderer="antialias: true"
         vr-mode-ui="enabled: true"
-        device-orientation-permission-ui="enabled: true">
-
+        device-orientation-permission-ui="enabled: true"
+        >
         <a-assets>
             <img id="sky" src="sky1.png">
             <a-asset-item id="gunModel" src="assets/scene.gltf"></a-asset-item>
@@ -200,16 +257,16 @@
                 dynamic-body="mass: 1; shape: box">
         </a-box>
 
-        <!-- Gun -->
+        <!-- Gun avec toggle-hold -->
         <a-entity id="gun"
                     class="grabbable"
                     gltf-model="#gunModel"
                     position="0 1.5 -3"
-                    scale="1.5 1.5 1.5"
+                    scale="2 2 2"
                     shadow
                     grabbable="usePhysics: only; startButtons: gripdown, squeezestart; endButtons: gripup, squeezeend"
                     dynamic-body="mass: 1; shape: box"
-                    fixed-grab="position: 0 -0.02 -0.04; rotation: 70 180 0">
+                    toggle-hold="position: 0 -0.02 -0.04; rotation: 70 180 0">
         </a-entity>
 
         <a-sky src="#sky"></a-sky>
