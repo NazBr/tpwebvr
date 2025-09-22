@@ -90,8 +90,8 @@
         /* --- Fixed Grab simplifié (même offset pour toutes les mains) --- */
         AFRAME.registerComponent('fixed-grab', {
             schema: {
-            position: { type: 'vec3', default: { x: 0, y: 0, z: -0.15 } },
-            rotation: { type: 'vec3', default: { x: 75, y: 180, z: 0 } }
+            position: { type: 'vec3', default: { x: 0, y: 0.15, z: -0.15 } },
+            rotation: { type: 'vec3', default: { x: 70, y: 180, z: 0 } }
             },
             init: function () {
             this._grabPoint = null;
@@ -209,7 +209,7 @@
                     shadow
                     grabbable="usePhysics: only; startButtons: gripdown, squeezestart; endButtons: gripup, squeezeend"
                     dynamic-body="mass: 1; shape: box"
-                    fixed-grab="position: 0 0 -0.15; rotation: 75 180 0">
+                    fixed-grab="position: 0 0.15 -0.15; rotation: 70 180 0">
         </a-entity>
 
         <a-sky src="#sky"></a-sky>
