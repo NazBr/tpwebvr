@@ -90,7 +90,7 @@
             }
         });
 
-        /* --- toggle-hold --- */
+        /* --- toggle-hold with throw --- */
         AFRAME.registerComponent('toggle-hold', {
             schema: {
             position: { type: 'vec3', default: { x: 0, y: -0.02, z: -0.04 } },
@@ -101,10 +101,14 @@
             this._handEl = null;
             this._grabPoint = null;
             this._savedDynamic = null;
+            this._lastPos = new THREE.Vector3();
+            this._lastTime = 0;
+            this._velocity = new THREE.Vector3();
 
             this._onGrabStart = this._onGrabStart.bind(this);
             this._onGrabEnd = this._onGrabEnd.bind(this);
             this._onGripDown = this._onGripDown.bind(this);
+            this.tick = this.tick.bind(this);
 
             this.el.addEventListener('grab-start', this._onGrabStart);
             this.el.addEventListener('grab-end', this._onGrabEnd);
@@ -133,7 +137,6 @@
             hand.appendChild(gp);
             const pos = this.data.position;
             gp.object3D.position.set(pos.x, pos.y, pos.z);
-
             gp.object3D.attach(this.el.object3D);
 
             const rot = this.data.rotation;
@@ -149,6 +152,9 @@
             this._grabPoint = gp;
 
             hand.addEventListener('gripdown', this._onGripDown);
+
+            this._lastPos.copy(hand.object3D.position);
+            this._lastTime = performance.now();
             },
 
             _onGrabEnd: function (evt) {
@@ -157,13 +163,6 @@
             if (this._held && this._handEl === hand) {
                 if (this._grabPoint && this._grabPoint.object3D) {
                 this._grabPoint.object3D.attach(this.el.object3D);
-                const rot = this.data.rotation;
-                this.el.object3D.position.set(0,0,0);
-                this.el.object3D.rotation.set(
-                    THREE.MathUtils.degToRad(rot.x),
-                    THREE.MathUtils.degToRad(rot.y),
-                    THREE.MathUtils.degToRad(rot.z)
-                );
                 }
             }
             },
@@ -181,6 +180,13 @@
                 const saved = this._savedDynamic;
                 setTimeout(() => {
                 this.el.setAttribute('dynamic-body', saved);
+                if (this.el.body) {
+                    this.el.body.velocity.set(
+                    this._velocity.x,
+                    this._velocity.y,
+                    this._velocity.z
+                    );
+                }
                 }, 20);
                 this._savedDynamic = null;
             }
@@ -192,6 +198,18 @@
 
             this._held = false;
             this._handEl = null;
+            },
+
+            tick: function (time, delta) {
+            if (this._held && this._handEl) {
+                const currentPos = new THREE.Vector3().copy(this._handEl.object3D.position);
+                const dt = (time - this._lastTime) / 1000;
+                if (dt > 0) {
+                this._velocity.copy(currentPos).sub(this._lastPos).divideScalar(dt);
+                }
+                this._lastPos.copy(currentPos);
+                this._lastTime = time;
+            }
             },
 
             _cleanupGrabPoint: function () {
@@ -256,12 +274,12 @@
                 dynamic-body="mass: 1; shape: box">
         </a-box>
 
-        <!-- Gun avec toggle-hold -->
+        <!-- Gun avec toggle-hold et scale -->
         <a-entity id="gun"
                     class="grabbable"
                     gltf-model="#gunModel"
                     position="0 1.5 -3"
-                    scale="1.5 1.5 1.5"
+                    scale="1.4 1.4 1.4"
                     shadow
                     grabbable="usePhysics: only; startButtons: gripdown, squeezestart; endButtons: gripup, squeezeend"
                     dynamic-body="mass: 1; shape: box"
