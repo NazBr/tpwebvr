@@ -90,7 +90,7 @@
             }
         });
 
-        /* --- toggle-hold with throw --- */
+        /* --- toggle-hold with throw + trigger sound --- */
         AFRAME.registerComponent('toggle-hold', {
             schema: {
             position: { type: 'vec3', default: { x: 0, y: -0.02, z: -0.04 } },
@@ -108,10 +108,16 @@
             this._onGrabStart = this._onGrabStart.bind(this);
             this._onGrabEnd = this._onGrabEnd.bind(this);
             this._onGripDown = this._onGripDown.bind(this);
+            this._onTriggerDown = this._onTriggerDown.bind(this);
             this.tick = this.tick.bind(this);
 
             this.el.addEventListener('grab-start', this._onGrabStart);
             this.el.addEventListener('grab-end', this._onGrabEnd);
+
+            // prepare sound component (positional). si l'utilisateur veut changer le son, modifie #gunShot dans assets
+            if (!this.el.getAttribute('sound')) {
+                this.el.setAttribute('sound', 'src: #gunShot; positional: true; volume: 1');
+            }
             },
 
             remove: function () {
@@ -120,6 +126,7 @@
             this.el.removeEventListener('grab-end', this._onGrabEnd);
             if (this._handEl) {
                 this._handEl.removeEventListener('gripdown', this._onGripDown);
+                this._handEl.removeEventListener('triggerdown', this._onTriggerDown);
             }
             },
 
@@ -128,17 +135,23 @@
             if (!hand || !hand.object3D) return;
             if (this._held && this._handEl === hand) return;
 
+            // sauvegarder dynamic-body
             if (this.el.hasAttribute('dynamic-body')) {
                 this._savedDynamic = this.el.getAttribute('dynamic-body');
                 this.el.removeAttribute('dynamic-body');
             }
 
+            // créer point d'attache sur la main
             const gp = document.createElement('a-entity');
+            gp.setAttribute('id', 'grabPoint-' + (this.el.id || Math.random().toString(36).substr(2,6)));
             hand.appendChild(gp);
             const pos = this.data.position;
             gp.object3D.position.set(pos.x, pos.y, pos.z);
+
+            // attacher l'objet au point
             gp.object3D.attach(this.el.object3D);
 
+            // appliquer rotation offset locale
             const rot = this.data.rotation;
             this.el.object3D.position.set(0, 0, 0);
             this.el.object3D.rotation.set(
@@ -147,12 +160,16 @@
                 THREE.MathUtils.degToRad(rot.z)
             );
 
+            // sauvegarde refs
             this._held = true;
             this._handEl = hand;
             this._grabPoint = gp;
 
+            // écouteurs pour toggle release et trigger
             hand.addEventListener('gripdown', this._onGripDown);
+            hand.addEventListener('triggerdown', this._onTriggerDown);
 
+            // init velocity tracking
             this._lastPos.copy(hand.object3D.position);
             this._lastTime = performance.now();
             },
@@ -161,8 +178,18 @@
             const hand = evt.detail?.hand;
             if (!hand) return;
             if (this._held && this._handEl === hand) {
+                // si super-hands a essayé de détacher, rattache immédiatement pour empêcher la chute
                 if (this._grabPoint && this._grabPoint.object3D) {
-                this._grabPoint.object3D.attach(this.el.object3D);
+                try {
+                    this._grabPoint.object3D.attach(this.el.object3D);
+                    const rot = this.data.rotation;
+                    this.el.object3D.position.set(0,0,0);
+                    this.el.object3D.rotation.set(
+                    THREE.MathUtils.degToRad(rot.x),
+                    THREE.MathUtils.degToRad(rot.y),
+                    THREE.MathUtils.degToRad(rot.z)
+                    );
+                } catch (e) {}
                 }
             }
             },
@@ -172,15 +199,18 @@
             const handThatPressed = evt.target || evt.currentTarget;
             if (handThatPressed !== this._handEl) return;
 
+            // détacher & restaurer la physique -> appliquer vélocité pour lancer
             try {
                 this.el.sceneEl.object3D.attach(this.el.object3D);
             } catch (e) {}
 
             if (this._savedDynamic) {
                 const saved = this._savedDynamic;
+                // restaurer dynamic-body puis appliquer velocity si body présent
                 setTimeout(() => {
                 this.el.setAttribute('dynamic-body', saved);
                 if (this.el.body) {
+                    // cannon body : set velocity
                     this.el.body.velocity.set(
                     this._velocity.x,
                     this._velocity.y,
@@ -191,13 +221,33 @@
                 this._savedDynamic = null;
             }
 
+            // cleanup listeners / grab point
             if (this._handEl) {
                 this._handEl.removeEventListener('gripdown', this._onGripDown);
+                this._handEl.removeEventListener('triggerdown', this._onTriggerDown);
             }
             this._cleanupGrabPoint();
 
             this._held = false;
             this._handEl = null;
+            },
+
+            _onTriggerDown: function (evt) {
+            // si l'objet est tenu par cette main -> jouer son
+            const handThatPressed = evt.target || evt.currentTarget;
+            if (!this._held || !this._handEl || handThatPressed !== this._handEl) return;
+
+            // jouer le son via le component sound
+            if (this.el.components && this.el.components.sound) {
+                this.el.components.sound.playSound();
+            } else {
+                // fallback : assigner le component et jouer
+                this.el.setAttribute('sound', 'src: #gunShot; positional: true; volume: 1');
+                // petit timeout pour s'assurer que component est initialisé
+                setTimeout(() => {
+                if (this.el.components && this.el.components.sound) this.el.components.sound.playSound();
+                }, 10);
+            }
             },
 
             tick: function (time, delta) {
@@ -233,6 +283,8 @@
         <a-assets>
             <img id="sky" src="sky1.png">
             <a-asset-item id="gunModel" src="assets/scene.gltf"></a-asset-item>
+            <!-- Place ton fichier audio ici -->
+            <audio id="gunShot" src="assets/shoot.wav"></audio>
         </a-assets>
 
         <!-- Lumières -->
@@ -274,7 +326,7 @@
                 dynamic-body="mass: 1; shape: box">
         </a-box>
 
-        <!-- Gun avec toggle-hold et scale -->
+        <!-- Gun avec toggle-hold, scale 1.4 -->
         <a-entity id="gun"
                     class="grabbable"
                     gltf-model="#gunModel"
