@@ -103,12 +103,12 @@
         // - rightPosition/rightRotation / leftPosition/leftRotation : overrides pour chaque main
         AFRAME.registerComponent('fixed-grab', {
             schema: {
-            position: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
-            rotation: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
-            leftPosition: { type: 'vec3', default: { x: 0, y: 0, z: -0.15 } },
-            leftRotation: { type: 'vec3', default: { x: 0, y: 180, z: 0 } },
-            rightPosition: { type: 'vec3', default: { x: 0, y: 0, z: -0.15 } },
-            rightRotation: { type: 'vec3', default: { x: 0, y: 180, z: 0 } }
+            position: { type: 'vec3', default: { x: 0, y: 0, z: -0.15 } },
+            rotation: { type: 'vec3', default: { x: 0, y: 180, z: 0 } },
+            leftPosition: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
+            leftRotation: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
+            rightPosition: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
+            rightRotation: { type: 'vec3', default: { x: 0, y: 0, z: 0 } }
             },
             init: function () {
             this._grabPoint = null;
