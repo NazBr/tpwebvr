@@ -211,7 +211,7 @@
         // gun-shoot : utilise le tracker comme bouche du canon
         AFRAME.registerComponent('gun-shoot', {
         schema: {
-            speed: {type: 'number', default: 30}
+            speed: {type: 'number', default: 400} // vitesse beaucoup plus élevée
         },
         init: function () {
             this._onTriggerDown = this._onTriggerDown.bind(this);
@@ -230,7 +230,6 @@
             }
             });
 
-            // référence vers le tracker
             this.tracker = this.el.querySelector('#tracker');
         },
         _onTriggerDown: function () {
@@ -238,24 +237,24 @@
             if (!this.tracker) return;
 
             const bullet = document.createElement('a-sphere');
-            bullet.setAttribute('radius', 0.03);
+            bullet.setAttribute('radius', 0.025);
             bullet.setAttribute('color', 'yellow');
             bullet.setAttribute('shadow', 'cast: true');
-            bullet.setAttribute('dynamic-body', 'mass:0.1; shape:sphere; sphereRadius:0.03');
+            bullet.setAttribute('dynamic-body', 'mass:0.05; shape:sphere; sphereRadius:0.025');
 
-            // Position du tracker (bouche du canon)
+            // Position de départ = tracker
             const worldPos = new THREE.Vector3();
             this.tracker.object3D.getWorldPosition(worldPos);
             bullet.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
 
             this.el.sceneEl.appendChild(bullet);
 
-            // Direction = orientation du tracker
+            // Direction du tir
             const dir = new THREE.Vector3(0, 0, -1);
             dir.applyQuaternion(this.tracker.object3D.quaternion);
             dir.normalize();
 
-            // Inertie = direction * speed + vitesse actuelle du gun
+            // Vitesse = direction * speed (+ inertie du gun)
             const velocity = dir.multiplyScalar(this.data.speed);
             if (this.el.body) {
             const gunVel = this.el.body.velocity;
@@ -267,6 +266,7 @@
             });
         }
         });
+
         </script>
     </body>
 </html>
