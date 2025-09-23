@@ -2,7 +2,6 @@
 <html>
     <head>
         <meta charset="utf-8" />
-        <title>A-Frame — Gun Grab + Accurate Shoot</title>
 
         <!-- A-Frame -->
         <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
@@ -145,7 +144,7 @@
         }
         });
 
-        // toggle-hold : fixed grab + hide hand
+        // toggle-hold : fixed grab + hide hand using display:none
         AFRAME.registerComponent('toggle-hold', {
         schema: {
             position: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
@@ -171,8 +170,10 @@
             this.el.removeAttribute('dynamic-body');
             }
 
+            // attach to hand so it follows exactly
             hand.object3D.attach(this.el.object3D);
 
+            // apply fixed local offset and rotation
             const pos = this.data.position;
             this.el.object3D.position.set(pos.x, pos.y, pos.z);
             const rot = this.data.rotation;
@@ -182,7 +183,13 @@
             THREE.MathUtils.degToRad(rot.z)
             );
 
-            hand.setAttribute('visible', false);
+            // hide hand visuals while holding using CSS display:none
+            try {
+            hand.style.display = 'none';
+            } catch (e) {
+            // fallback: set visible if style not supported
+            hand.setAttribute('visible', 'false');
+            }
 
             this._held = true;
             this._handEl = hand;
@@ -192,20 +199,30 @@
         _onGripDown: function () {
             if (!this._held || !this._handEl) return;
 
+            // detach back to scene root
             this._handEl.sceneEl.object3D.attach(this.el.object3D);
+
+            // restore physics (dynamic-body)
             if (this._savedDynamic) {
             this.el.setAttribute('dynamic-body', this._savedDynamic);
             this._savedDynamic = null;
             }
-            this._handEl.setAttribute('visible', true);
+
+            // restore hand visuals
+            try {
+            this._handEl.style.display = '';
+            } catch (e) {
+            this._handEl.setAttribute('visible', 'true');
+            }
 
             this._handEl.removeEventListener('gripdown', this._onGripDown);
+
             this._held = false;
             this._handEl = null;
         }
         });
 
-        // gun-shoot: spawn projectile using getWorldDirection of tracker
+        // gun-shoot: spawn projectile using getWorldDirection of tracker, speed=50
         AFRAME.registerComponent('gun-shoot', {
         schema: {
             speed: { type: 'number', default: 50 },
@@ -236,11 +253,12 @@
             bullet.setAttribute('shadow', 'cast: true');
             bullet.setAttribute('dynamic-body', 'mass:0.02; shape:sphere; sphereRadius:0.02');
 
+            // spawn at tracker world position
             const worldPos = new THREE.Vector3();
             this.tracker.object3D.getWorldPosition(worldPos);
             bullet.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
 
-            // === Utilisation de getWorldDirection ===
+            // === compute direction using getWorldDirection as requested ===
             const direction = new THREE.Vector3(0, 0, -1);
             this.tracker.object3D.getWorldDirection(direction);
             direction.normalize();
@@ -252,6 +270,7 @@
             bullet.setAttribute('velocity', `${direction.x * speed} ${direction.y * speed} ${direction.z * speed}`);
             });
 
+            // cleanup
             setTimeout(() => {
             if (bullet.parentNode) bullet.parentNode.removeChild(bullet);
             }, this.data.lifetime);
