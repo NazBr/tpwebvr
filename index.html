@@ -210,7 +210,7 @@
 
         AFRAME.registerComponent('gun-shoot', {
         schema: {
-            speed: {type: 'number', default: 200} // vitesse initiale du projectile
+            speed: {type: 'number', default: 200}
         },
         init: function () {
             this._onTriggerDown = this._onTriggerDown.bind(this);
@@ -253,23 +253,16 @@
             dir.applyQuaternion(this.tracker.object3D.quaternion);
             dir.normalize();
 
-            // On applique la vélocité APRES que le body est chargé
+            // Appliquer la vitesse via l’attribut velocity
+            const speed = this.data.speed;
             bullet.addEventListener('body-loaded', () => {
-            const velocity = new CANNON.Vec3(
-                dir.x * this.data.speed,
-                dir.y * this.data.speed,
-                dir.z * this.data.speed
+            bullet.setAttribute(
+                'velocity',
+                `${dir.x * speed} ${dir.y * speed} ${dir.z * speed}`
             );
-
-            // Ajout de la vitesse du pistolet lui-même (si tu bouges en tirant)
-            if (this.el.body) {
-                velocity.vadd(this.el.body.velocity, velocity);
-            }
-
-            bullet.body.velocity.copy(velocity);
             });
 
-            // Supprimer les balles après 3 secondes pour éviter le lag
+            // Supprimer les balles après 3 secondes
             setTimeout(() => {
             if (bullet.parentNode) {
                 bullet.parentNode.removeChild(bullet);
