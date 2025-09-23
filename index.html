@@ -208,10 +208,9 @@
         }
         });
 
-        // gun-shoot : utilise le tracker comme bouche du canon
         AFRAME.registerComponent('gun-shoot', {
         schema: {
-            speed: {type: 'number', default: 400} // vitesse beaucoup plus élevée
+            speed: {type: 'number', default: 200} // vitesse initiale du projectile
         },
         init: function () {
             this._onTriggerDown = this._onTriggerDown.bind(this);
@@ -242,28 +241,40 @@
             bullet.setAttribute('shadow', 'cast: true');
             bullet.setAttribute('dynamic-body', 'mass:0.05; shape:sphere; sphereRadius:0.025');
 
-            // Position de départ = tracker
+            // Position = sortie du canon
             const worldPos = new THREE.Vector3();
             this.tracker.object3D.getWorldPosition(worldPos);
             bullet.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
 
             this.el.sceneEl.appendChild(bullet);
 
-            // Direction du tir
+            // Calcul direction du tir
             const dir = new THREE.Vector3(0, 0, -1);
             dir.applyQuaternion(this.tracker.object3D.quaternion);
             dir.normalize();
 
-            // Vitesse = direction * speed (+ inertie du gun)
-            const velocity = dir.multiplyScalar(this.data.speed);
+            // On applique la vélocité APRES que le body est chargé
+            bullet.addEventListener('body-loaded', () => {
+            const velocity = new CANNON.Vec3(
+                dir.x * this.data.speed,
+                dir.y * this.data.speed,
+                dir.z * this.data.speed
+            );
+
+            // Ajout de la vitesse du pistolet lui-même (si tu bouges en tirant)
             if (this.el.body) {
-            const gunVel = this.el.body.velocity;
-            velocity.add(new CANNON.Vec3(gunVel.x, gunVel.y, gunVel.z));
+                velocity.vadd(this.el.body.velocity, velocity);
             }
 
-            bullet.addEventListener('body-loaded', () => {
-            bullet.body.velocity.set(velocity.x, velocity.y, velocity.z);
+            bullet.body.velocity.copy(velocity);
             });
+
+            // Supprimer les balles après 3 secondes pour éviter le lag
+            setTimeout(() => {
+            if (bullet.parentNode) {
+                bullet.parentNode.removeChild(bullet);
+            }
+            }, 3000);
         }
         });
 
