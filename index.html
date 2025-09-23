@@ -75,7 +75,7 @@
                 static-body="collisionFilterGroup:2; collisionFilterMask:1">
         </a-box>
 
-        <!-- Gun: contains an invisible tracker child at the muzzle -->
+        <!-- Gun -->
         <a-entity id="gun" rotation="0 0 0"
                     class="grabbable"
                     gltf-model="#gunModel"
@@ -84,8 +84,8 @@
                     shadow
                     dynamic-body="mass: 1; shape: box"
                     toggle-hold="position: 0 -0.02 -0.04; rotation: 70 180 0"
-                    gun-shoot="speed: 400">
-            <!-- tracker: place this at the muzzle in Blender/your exporter or tweak its position here -->
+                    gun-shoot="speed: 50">
+            <!-- Tracker (muzzle) -->
             <a-entity id="tracker" position="-0.00293 0.0198 0.28446"></a-entity>
         </a-entity>
 
@@ -145,7 +145,7 @@
         }
         });
 
-        // toggle-hold : fixed grab + hide hand + restore physics on grip
+        // toggle-hold : fixed grab + hide hand
         AFRAME.registerComponent('toggle-hold', {
         schema: {
             position: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
@@ -171,10 +171,8 @@
             this.el.removeAttribute('dynamic-body');
             }
 
-            // attach to hand so it follows exactly
             hand.object3D.attach(this.el.object3D);
 
-            // apply fixed local offset and rotation
             const pos = this.data.position;
             this.el.object3D.position.set(pos.x, pos.y, pos.z);
             const rot = this.data.rotation;
@@ -184,7 +182,6 @@
             THREE.MathUtils.degToRad(rot.z)
             );
 
-            // hide hand visuals while holding
             hand.setAttribute('visible', false);
 
             this._held = true;
@@ -195,100 +192,66 @@
         _onGripDown: function () {
             if (!this._held || !this._handEl) return;
 
-            // detach back to scene root
             this._handEl.sceneEl.object3D.attach(this.el.object3D);
-
-            // restore physics (dynamic-body)
             if (this._savedDynamic) {
             this.el.setAttribute('dynamic-body', this._savedDynamic);
             this._savedDynamic = null;
             }
-
-            // show hand visuals again
             this._handEl.setAttribute('visible', true);
 
             this._handEl.removeEventListener('gripdown', this._onGripDown);
-
             this._held = false;
             this._handEl = null;
         }
         });
 
-        // gun-shoot: spawn projectile at tracker using tracker world quaternion for direction,
-        // then apply velocity via 'velocity' attribute when physics body is ready.
+        // gun-shoot: spawn projectile using getWorldDirection of tracker
         AFRAME.registerComponent('gun-shoot', {
         schema: {
-            speed: { type: 'number', default: 400 }, // adjust for "bullet" speed
-            lifetime: { type: 'number', default: 3000 } // ms before auto-remove
+            speed: { type: 'number', default: 50 },
+            lifetime: { type: 'number', default: 3000 }
         },
         init: function () {
             this._onTriggerDown = this._onTriggerDown.bind(this);
             this.tracker = this.el.querySelector('#tracker');
 
-            // attach trigger listener on the holding hand
             this.el.addEventListener('grab-start', evt => {
             const hand = evt.detail?.hand;
             if (hand) hand.addEventListener('triggerdown', this._onTriggerDown);
             });
 
-            // remove listener when released
             this.el.addEventListener('grab-end', evt => {
             const hand = evt.detail?.hand;
             if (hand) hand.removeEventListener('triggerdown', this._onTriggerDown);
             });
         },
         _onTriggerDown: function () {
-            // Only shoot if the gun is currently held by toggle-hold
             const th = this.el.components['toggle-hold'];
             if (!th || !th._held) return;
-            if (!this.tracker) {
-            console.warn('gun-shoot: tracker not found');
-            return;
-            }
+            if (!this.tracker) return;
 
-            // Create bullet entity
             const bullet = document.createElement('a-sphere');
             bullet.setAttribute('radius', 0.02);
             bullet.setAttribute('color', 'yellow');
             bullet.setAttribute('shadow', 'cast: true');
             bullet.setAttribute('dynamic-body', 'mass:0.02; shape:sphere; sphereRadius:0.02');
 
-            // place at tracker world position
             const worldPos = new THREE.Vector3();
             this.tracker.object3D.getWorldPosition(worldPos);
             bullet.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
 
-            // compute direction using tracker's WORLD quaternion
-            const worldQuat = new THREE.Quaternion();
-            this.tracker.object3D.getWorldQuaternion(worldQuat);
-            const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(worldQuat).normalize();
+            // === Utilisation de getWorldDirection ===
+            const direction = new THREE.Vector3(0, 0, -1);
+            this.tracker.object3D.getWorldDirection(direction);
+            direction.normalize();
 
-            // append to scene so physics can be created
             this.el.sceneEl.appendChild(bullet);
 
-            // apply velocity when physics body is ready using 'velocity' attribute (works with aframe-physics-system)
             const speed = this.data.speed;
             bullet.addEventListener('body-loaded', () => {
-            // velocity attribute expects a string "x y z"
-            const vx = dir.x * speed;
-            const vy = dir.y * speed;
-            const vz = dir.z * speed;
-
-            // if gun has body (CANNON), add its velocity to bullet speed for inertia
-            if (this.el.body) {
-                // this.el.body.velocity is a CANNON.Vec3
-                const gunVel = this.el.body.velocity;
-                // compute final velocity components
-                const finalX = vx + (gunVel.x || 0);
-                const finalY = vy + (gunVel.y || 0);
-                const finalZ = vz + (gunVel.z || 0);
-                bullet.setAttribute('velocity', `${finalX} ${finalY} ${finalZ}`);
-            } else {
-                bullet.setAttribute('velocity', `${vx} ${vy} ${vz}`);
-            }
+            bullet.setAttribute('velocity', `${direction.x * speed} ${direction.y * speed} ${direction.z * speed}`);
             });
 
-            // cleanup after lifetime ms
             setTimeout(() => {
             if (bullet.parentNode) bullet.parentNode.removeChild(bullet);
             }, this.data.lifetime);
