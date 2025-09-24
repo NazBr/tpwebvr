@@ -48,13 +48,13 @@
             <a-entity id="head" camera look-controls wasd-controls="enabled: false"></a-entity>
 
             <a-entity id="leftHand"
-                    oculus-touch-controls="hand: left; handModelStyle: lowPoly; color: #ffcccc"
+                    oculus-touch-controls="hand: left"
                     super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
                     sphere-collider="objects: .grabbable"
                     static-body="shape: sphere; sphereRadius: 0.03">
             </a-entity>
 
-            <a-entity id="rightHand; handModelStyle: lowPoly; color: #ffcccc"
+            <a-entity id="rightHand"
                     oculus-touch-controls="hand: right"
                     super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
                     sphere-collider="objects: .grabbable"
@@ -163,65 +163,58 @@
             this.el.addEventListener('grab-start', this._onGrabStart);
         },
         _onGrabStart: function (evt) {
-            if (this._held) return;
-            const hand = evt.detail?.hand;
-            if (!hand) return;
-
-            if (this.el.hasAttribute('dynamic-body')) {
+          if (this._held) return;
+          const hand = evt.detail?.hand;
+          if (!hand) return;
+        
+          // désactiver physique pour attacher
+          if (this.el.hasAttribute('dynamic-body')) {
             this._savedDynamic = this.el.getAttribute('dynamic-body');
             this.el.removeAttribute('dynamic-body');
-            }
-
-            // attach to hand so it follows exactly
-            hand.object3D.attach(this.el.object3D);
-
-            // apply fixed local offset and rotation
-            const pos = this.data.position;
-            this.el.object3D.position.set(pos.x, pos.y, pos.z);
-            const rot = this.data.rotation;
-            this.el.object3D.rotation.set(
+          }
+        
+          hand.object3D.attach(this.el.object3D);
+        
+          // appliquer position/rotation fixe
+          const pos = this.data.position;
+          this.el.object3D.position.set(pos.x, pos.y, pos.z);
+          const rot = this.data.rotation;
+          this.el.object3D.rotation.set(
             THREE.MathUtils.degToRad(rot.x),
             THREE.MathUtils.degToRad(rot.y),
             THREE.MathUtils.degToRad(rot.z)
-            );
-
-            // hide hand visuals while holding using CSS display:none
-            try {
-            hand.style.display = 'none';
-            } catch (e) {
-            // fallback: set visible if style not supported
-            hand.setAttribute('visible', 'false');
-            }
-
-            this._held = true;
-            this._handEl = hand;
-
-            hand.addEventListener('gripdown', this._onGripDown);
+          );
+        
+          // 🔹 cacher le modèle 3D du contrôleur
+          const model = hand.querySelector('.controller-model');
+          if (model) model.object3D.visible = false;
+        
+          this._held = true;
+          this._handEl = hand;
+        
+          hand.addEventListener('gripdown', this._onGripDown);
         },
+        
         _onGripDown: function () {
-            if (!this._held || !this._handEl) return;
-
-            // detach back to scene root
-            this._handEl.sceneEl.object3D.attach(this.el.object3D);
-
-            // restore physics (dynamic-body)
-            if (this._savedDynamic) {
+          if (!this._held || !this._handEl) return;
+        
+          this._handEl.sceneEl.object3D.attach(this.el.object3D);
+        
+          if (this._savedDynamic) {
             this.el.setAttribute('dynamic-body', this._savedDynamic);
             this._savedDynamic = null;
-            }
-
-            // restore hand visuals
-            try {
-            this._handEl.style.display = '';
-            } catch (e) {
-            this._handEl.setAttribute('visible', 'true');
-            }
-
-            this._handEl.removeEventListener('gripdown', this._onGripDown);
-
-            this._held = false;
-            this._handEl = null;
+          }
+        
+          // 🔹 réafficher le modèle du contrôleur
+          const model = this._handEl.querySelector('.controller-model');
+          if (model) model.object3D.visible = true;
+        
+          this._handEl.removeEventListener('gripdown', this._onGripDown);
+        
+          this._held = false;
+          this._handEl = null;
         }
+
         });
 
         // gun-shoot: spawn projectile using getWorldDirection of tracker, speed=50
