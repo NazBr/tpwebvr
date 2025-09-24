@@ -27,18 +27,18 @@
         shadow="type: pcfsoft"
         renderer="antialias: true"
         vr-mode-ui="enabled: true"
-        device-orientation-permission-ui="enabled: true"
-        target-spawner> <!-- on pose le component par défaut, il va spawn les cibles -->
-        
+        device-orientation-permission-ui="enabled: true">
+
         <a-assets>
             <img id="sky" src="sky1.png">
             <a-asset-item id="gunModel" src="assets/scene.gltf"></a-asset-item>
-            <audio id="shootSound" src="assets/shoot.mp3" preload="auto"></audio>
+            <!-- place ton fichier audio assets/shoot.mp3 -->
+            <audio id="shootSound" src="assets/shot.mp3" preload="auto"></audio>
         </a-assets>
 
         <!-- Lights -->
         <a-entity light="type: ambient; color: #ffffff; intensity: 0.5"></a-entity>
-        <a-entity light="type: directional; intensity: 0.9; castShadow: true" position="-2 6 -2"></a-entity>
+        <a-entity light="type: directional; intensity: 0.8; castShadow: true" position="-2 4 -3"></a-entity>
 
         <!-- Rig + camera + hands -->
         <a-entity id="rig" position="0 0.35 0" joystick-movement="speed: 2" snap-turn="angle: 30; cooldown: 300">
@@ -59,15 +59,9 @@
             </a-entity>
         </a-entity>
 
-        <!-- Ground (agrandi) -->
-        <a-plane id="ground"
-                position="0 0 0"
-                rotation="-90 0 0"
-                width="100" height="100"
-                color="#7BC8A4"
-                static-body
-                shadow="receive: true">
-        </a-plane>
+        <!-- Ground -->
+        <a-plane position="0 0 0" rotation="-90 0 0" width="75" height="75"
+                color="#7BC8A4" static-body shadow="receive: true"></a-plane>
 
         <!-- Table -->
         <a-box id="table"
@@ -79,7 +73,7 @@
         </a-box>
 
         <!-- Gun -->
-        <a-entity id="gun"
+        <a-entity id="gun" rotation="0 0 0"
                     class="grabbable"
                     gltf-model="#gunModel"
                     position="0.10047 1.17377 -3.01759"
@@ -87,8 +81,10 @@
                     shadow
                     dynamic-body="mass: 1; shape: box"
                     toggle-hold="position: 0 -0.02 -0.04; rotation: 70 180 0"
-                    gun-shoot="speed: 15">
+                    gun-shoot="speed: 50">
+            <!-- Tracker (muzzle) -->
             <a-entity id="tracker" position="-0.00293 0.0198 0.28446"></a-entity>
+            <!-- Sound entity -->
             <a-entity id="gunSound" sound="src: #shootSound; autoplay: false; positional: true; loop: false"></a-entity>
         </a-entity>
 
@@ -96,12 +92,10 @@
         </a-scene>
 
         <script>
-        // --------------------------
-        // Movement & snap-turn (inchangé)
-        // --------------------------
+        // --- joystick-movement ---
         AFRAME.registerComponent('joystick-movement', {
-        schema: { speed: { type: 'number', default: 2 } },
-        init: function () {
+            schema: { speed: { type: 'number', default: 2 } },
+            init: function () {
             const rig = document.querySelector('#rig');
             const head = document.querySelector('#head');
             const leftHand = document.querySelector('#leftHand');
@@ -110,27 +104,28 @@
             if (!leftHand) return;
 
             leftHand.addEventListener('thumbstickmoved', function (evt) {
-            const dx = evt.detail.x, dy = evt.detail.y;
-            if (Math.abs(dx) < DEADZONE && Math.abs(dy) < DEADZONE) return;
+                const dx = evt.detail.x, dy = evt.detail.y;
+                if (Math.abs(dx) < DEADZONE && Math.abs(dy) < DEADZONE) return;
 
-            const forward = new THREE.Vector3();
-            head.object3D.getWorldDirection(forward);
-            forward.y = 0; forward.normalize();
+                const forward = new THREE.Vector3();
+                head.object3D.getWorldDirection(forward);
+                forward.y = 0; forward.normalize();
 
-            const right = new THREE.Vector3();
-            right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).negate();
+                const right = new THREE.Vector3();
+                right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).negate();
 
-            const step = 0.05 * speed;
-            const rigPos = rig.object3D.position;
-            rigPos.addScaledVector(forward, dy * step);
-            rigPos.addScaledVector(right, dx * step);
+                const step = 0.05 * speed;
+                const rigPos = rig.object3D.position;
+                rigPos.addScaledVector(forward, dy * step);
+                rigPos.addScaledVector(right, dx * step);
             });
-        }
+            }
         });
 
+        // --- snap-turn ---
         AFRAME.registerComponent('snap-turn', {
-        schema: { angle: { type: 'number', default: 30 }, cooldown: { type: 'number', default: 300 } },
-        init: function () {
+            schema: { angle: { type: 'number', default: 30 }, cooldown: { type: 'number', default: 300 } },
+            init: function () {
             const rig = document.querySelector('#rig');
             const rightHand = document.querySelector('#rightHand');
             const angle = this.data.angle;
@@ -139,25 +134,23 @@
             if (!rightHand) return;
 
             rightHand.addEventListener('thumbstickmoved', function (evt) {
-            const now = Date.now(), x = evt.detail.x;
-            if (Math.abs(x) < 0.8 || now - lastTurn < cooldown) return;
-            const rad = THREE.MathUtils.degToRad(angle);
-            if (x > 0.8) rig.object3D.rotation.y -= rad;
-            else rig.object3D.rotation.y += rad;
-            lastTurn = now;
+                const now = Date.now(), x = evt.detail.x;
+                if (Math.abs(x) < 0.8 || now - lastTurn < cooldown) return;
+                const rad = THREE.MathUtils.degToRad(angle);
+                if (x > 0.8) rig.object3D.rotation.y -= rad;
+                else rig.object3D.rotation.y += rad;
+                lastTurn = now;
             });
-        }
+            }
         });
 
-        // --------------------------
-        // toggle-hold (fixed grab + hide controller-model fallback)
-        // --------------------------
+        // --- toggle-hold ---
         AFRAME.registerComponent('toggle-hold', {
-        schema: {
+            schema: {
             position: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
             rotation: { type: 'vec3', default: { x: 0, y: 0, z: 0 } }
-        },
-        init: function () {
+            },
+            init: function () {
             this._held = false;
             this._handEl = null;
             this._savedDynamic = null;
@@ -166,31 +159,15 @@
             this._onGripDown = this._onGripDown.bind(this);
 
             this.el.addEventListener('grab-start', this._onGrabStart);
-        },
-        _hideControllerModel: function (handEl) {
-            try {
-            const model = handEl.querySelector('.controller-model');
-            if (model && model.object3D) {
-                model.object3D.visible = false;
-                return true;
-            }
-            } catch (e) {}
-            return false;
-        },
-        _showControllerModel: function (handEl) {
-            try {
-            const model = handEl.querySelector('.controller-model');
-            if (model && model.object3D) model.object3D.visible = true;
-            } catch (e) {}
-        },
-        _onGrabStart: function (evt) {
+            },
+            _onGrabStart: function (evt) {
             if (this._held) return;
             const hand = evt.detail?.hand;
             if (!hand) return;
 
             if (this.el.hasAttribute('dynamic-body')) {
-            this._savedDynamic = this.el.getAttribute('dynamic-body');
-            this.el.removeAttribute('dynamic-body');
+                this._savedDynamic = this.el.getAttribute('dynamic-body');
+                this.el.removeAttribute('dynamic-body');
             }
 
             hand.object3D.attach(this.el.object3D);
@@ -199,83 +176,70 @@
             this.el.object3D.position.set(pos.x, pos.y, pos.z);
             const rot = this.data.rotation;
             this.el.object3D.rotation.set(
-            THREE.MathUtils.degToRad(rot.x),
-            THREE.MathUtils.degToRad(rot.y),
-            THREE.MathUtils.degToRad(rot.z)
+                THREE.MathUtils.degToRad(rot.x),
+                THREE.MathUtils.degToRad(rot.y),
+                THREE.MathUtils.degToRad(rot.z)
             );
-
-            // hide controller model if possible, fallback to DOM style
-            const hid = this._hideControllerModel(hand);
-            if (!hid) {
-            try { hand.style.display = 'none'; } catch (e) { hand.setAttribute('visible', 'false'); }
-            }
 
             this._held = true;
             this._handEl = hand;
-
             hand.addEventListener('gripdown', this._onGripDown);
-        },
-        _onGripDown: function () {
+            },
+            _onGripDown: function () {
             if (!this._held || !this._handEl) return;
 
             this._handEl.sceneEl.object3D.attach(this.el.object3D);
 
             if (this._savedDynamic) {
-            this.el.setAttribute('dynamic-body', this._savedDynamic);
-            this._savedDynamic = null;
+                this.el.setAttribute('dynamic-body', this._savedDynamic);
+                this._savedDynamic = null;
             }
 
-            // restore controller visuals
-            this._showControllerModel(this._handEl);
-            try { this._handEl.style.display = ''; } catch (e) { this._handEl.setAttribute('visible', 'true'); }
-
             this._handEl.removeEventListener('gripdown', this._onGripDown);
-
             this._held = false;
             this._handEl = null;
-        }
+            }
         });
 
-        // --------------------------
-        // gun-shoot (spawn bullet, play sound, velocity via 'velocity' attribute)
-        // --------------------------
+        // --- gun-shoot ---
         AFRAME.registerComponent('gun-shoot', {
-        schema: {
-            speed: { type: 'number', default: 15 },
+            schema: {
+            speed: { type: 'number', default: 20 },
             lifetime: { type: 'number', default: 3000 }
-        },
-        init: function () {
+            },
+            init: function () {
             this._onTriggerDown = this._onTriggerDown.bind(this);
             this.tracker = this.el.querySelector('#tracker');
             this.soundEntity = this.el.querySelector('#gunSound');
 
             this.el.addEventListener('grab-start', evt => {
-            const hand = evt.detail?.hand;
-            if (hand) hand.addEventListener('triggerdown', this._onTriggerDown);
+                const hand = evt.detail?.hand;
+                if (hand) hand.addEventListener('triggerdown', this._onTriggerDown);
             });
             this.el.addEventListener('grab-end', evt => {
-            const hand = evt.detail?.hand;
-            if (hand) hand.removeEventListener('triggerdown', this._onTriggerDown);
+                const hand = evt.detail?.hand;
+                if (hand) hand.removeEventListener('triggerdown', this._onTriggerDown);
             });
-        },
-        _onTriggerDown: function () {
+            },
+            _onTriggerDown: function () {
             const th = this.el.components['toggle-hold'];
             if (!th || !th._held) return;
             if (!this.tracker) return;
 
-            // play sound
+            // jouer le son
             if (this.soundEntity && this.soundEntity.components && this.soundEntity.components.sound) {
-            try { this.soundEntity.components.sound.stopSound(); } catch (e) {}
-            try { this.soundEntity.components.sound.playSound(); } catch (e) { console.warn('playSound error', e); }
+                try {
+                this.soundEntity.components.sound.stopSound();
+                this.soundEntity.components.sound.playSound();
+                } catch (e) { console.warn('playSound error', e); }
             }
 
-            // create bullet
+            // spawn projectile
             const bullet = document.createElement('a-sphere');
             bullet.setAttribute('radius', 0.02);
             bullet.setAttribute('color', 'yellow');
             bullet.setAttribute('shadow', 'cast: true');
             bullet.setAttribute('dynamic-body', 'mass:0.02; shape:sphere; sphereRadius:0.02');
-            bullet.classList.add('projectile');
 
             const worldPos = new THREE.Vector3();
             this.tracker.object3D.getWorldPosition(worldPos);
@@ -289,88 +253,13 @@
 
             const speed = this.data.speed;
             bullet.addEventListener('body-loaded', () => {
-            // apply velocity via A-Frame physics attribute (works with aframe-physics-system)
-            bullet.setAttribute('velocity', `${direction.x * speed} ${direction.y * speed} ${direction.z * speed}`);
-
-            // set up collision handling: if bullet hits a target -> remove both
-            // 'collide' event is fired on the element when its physics body collides
-            bullet.addEventListener('collide', function (evt) {
-                const otherBody = evt.detail && evt.detail.body;
-                if (!otherBody) return;
-                const otherEl = otherBody.el;
-                if (otherEl && otherEl.classList && otherEl.classList.contains('target')) {
-                // remove target and bullet
-                try { if (otherEl.parentNode) otherEl.parentNode.removeChild(otherEl); } catch (e) {}
-                try { if (bullet.parentNode) bullet.parentNode.removeChild(bullet); } catch (e) {}
-                }
-            });
+                bullet.setAttribute('velocity', `${direction.x * speed} ${direction.y * speed} ${direction.z * speed}`);
             });
 
-            // cleanup after lifetime
             setTimeout(() => {
-            if (bullet.parentNode) bullet.parentNode.removeChild(bullet);
+                if (bullet.parentNode) bullet.parentNode.removeChild(bullet);
             }, this.data.lifetime);
-        }
-        });
-
-        // --------------------------
-        // target-spawner component: spawns targets at scene start
-        // --------------------------
-        AFRAME.registerComponent('target-spawner', {
-        schema: {
-            count: { type: 'int', default: 8 },
-            minX: { type: 'number', default: -6 },
-            maxX: { type: 'number', default: 6 },
-            minZ: { type: 'number', default: -4 },
-            maxZ: { type: 'number', default: -12 },
-            size: { type: 'number', default: 0.5 },
-            y: { type: 'number', default: 0.25 } // half-height so cube sits on ground
-        },
-        init: function () {
-            // wait for scene to be ready
-            const scene = this.el;
-            scene.addEventListener('renderstart', () => this.spawnTargets());
-            // fallback if renderstart not fired
-            setTimeout(() => {
-            if (!this._spawned) this.spawnTargets();
-            }, 500);
-        },
-        spawnTargets: function () {
-            if (this._spawned) return;
-            this._spawned = true;
-
-            const cfg = this.data;
-            for (let i = 0; i < cfg.count; i++) {
-            const x = Math.random() * (cfg.maxX - cfg.minX) + cfg.minX;
-            const z = -(Math.random() * (Math.abs(cfg.minZ) - Math.abs(cfg.maxZ)) + Math.abs(cfg.maxZ));
-            // ensure z is negative and between maxZ and minZ (both negative)
-            // above computation gives negative z; simpler: pick number between -4 and -12:
-            // but we already used minZ/maxZ default -4 / -12; fix with:
-            const zz = Math.random() * (Math.abs(cfg.minZ) - Math.abs(cfg.maxZ)) + Math.abs(cfg.maxZ);
-            const posZ = -zz;
-
-            const box = document.createElement('a-box');
-            box.classList.add('target');
-            box.setAttribute('width', cfg.size);
-            box.setAttribute('height', cfg.size);
-            box.setAttribute('depth', cfg.size);
-            box.setAttribute('color', '#FF6666');
-            box.setAttribute('shadow', 'cast: true; receive: true');
-
-            // position: y is half-size so it sits on ground
-            box.setAttribute('position', `${x} ${cfg.y} ${posZ}`);
-
-            // make static-body so it doesn't move, and allow bullets to collide
-            box.setAttribute('static-body', 'shape: box');
-
-            // optional: small random rotation for variety
-            const ry = Math.random() * 360;
-            box.object3D.rotation.y = THREE.MathUtils.degToRad(ry);
-
-            // append to scene
-            this.el.appendChild(box);
             }
-        }
         });
         </script>
     </body>
