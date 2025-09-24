@@ -32,8 +32,8 @@
         <a-assets>
             <img id="sky" src="sky1.png">
             <a-asset-item id="gunModel" src="assets/scene.gltf"></a-asset-item>
-            <!-- place ton fichier audio assets/shoot.mp3 -->
             <audio id="shootSound" src="assets/shot.mp3" preload="auto"></audio>
+            <audio id="hitSound" src="assets/hit.mp3" preload="auto"></audio>
         </a-assets>
 
         <!-- Lights -->
@@ -226,7 +226,7 @@
                 if (!th || !th._held) return;
                 if (!this.tracker) return;
     
-                // jouer le son
+                // jouer le son du tir
                 if (this.soundEntity?.components?.sound) {
                     try {
                         this.soundEntity.components.sound.stopSound();
@@ -260,14 +260,21 @@
                 bullet.addEventListener('collide', evt => {
                     const otherEl = evt.detail.body?.el;
                     if (otherEl && otherEl.classList.contains('target')) {
-                        // supprimer la cible en différé pour éviter le crash
+                        // jouer le son du hit
+                        const hitSound = otherEl.querySelector('.hitSound');
+                        if (hitSound?.components?.sound) {
+                            hitSound.components.sound.stopSound();
+                            hitSound.components.sound.playSound();
+                        }
+    
+                        // supprimer la cible en différé
                         setTimeout(() => {
                             if (otherEl.parentNode) {
                                 otherEl.parentNode.removeChild(otherEl);
                                 // respawn UNE nouvelle cible
                                 spawnTarget();
                             }
-                        }, 0);
+                        }, 200);
                     }
                 });
     
@@ -293,6 +300,13 @@
             target.setAttribute('shadow', 'cast: true');
             target.setAttribute('dynamic-body', 'mass:0; shape:box');
     
+            // ajouter son de hit
+            const sound = document.createElement('a-entity');
+            sound.setAttribute('class', 'hitSound');
+            sound.setAttribute('sound', 'src: #hitSound; autoplay: false; positional: true; loop: false');
+            target.appendChild(sound);
+    
+            // position aléatoire
             const x = (Math.random() - 0.5) * 10;
             const y = 1 + Math.random() * 2;
             const z = -3 - Math.random() * 5;
