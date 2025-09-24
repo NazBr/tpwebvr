@@ -2,11 +2,11 @@
 <html>
     <head>
         <meta charset="utf-8" />
-        
+
         <!-- A-Frame -->
         <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
 
-        <!-- Supprimer grabbable natif (éviter conflit avec super-hands) -->
+        <!-- Eviter conflit grabbable -->
         <script>
         if (AFRAME.components && AFRAME.components['grabbable']) {
             delete AFRAME.components['grabbable'];
@@ -22,7 +22,7 @@
     </head>
 
     <body>
-        <!-- Scene: augmenter précision des collisions via iterations -->
+        <!-- augmenter la précision de la physique (réduit les ratés) -->
         <a-scene
         physics="gravity: -9.81; driver: cannon; iterations: 20"
         shadow="type: pcfsoft"
@@ -33,7 +33,6 @@
         <a-assets>
             <img id="sky" src="sky1.png">
             <a-asset-item id="gunModel" src="assets/scene.gltf"></a-asset-item>
-            <!-- Sons -->
             <audio id="shootSound" src="assets/shot.mp3" preload="auto"></audio>
             <audio id="hitSound" src="assets/hit.mp3" preload="auto"></audio>
         </a-assets>
@@ -42,7 +41,7 @@
         <a-entity light="type: ambient; color: #ffffff; intensity: 0.5"></a-entity>
         <a-entity light="type: directional; intensity: 0.8; castShadow: true" position="-2 4 -3"></a-entity>
 
-        <!-- RIG + camera + mains -->
+        <!-- Rig + camera + hands -->
         <a-entity id="rig" position="0 0.35 0" joystick-movement="speed: 2" snap-turn="angle: 30; cooldown: 300">
             <a-entity id="head" camera look-controls wasd-controls="enabled: false"></a-entity>
 
@@ -93,7 +92,7 @@
 
         <script>
         // ------------------------
-        // Movement & snap-turn (inchangés)
+        // joystick-movement
         // ------------------------
         AFRAME.registerComponent('joystick-movement', {
         schema: { speed: { type: 'number', default: 2 } },
@@ -124,6 +123,9 @@
         }
         });
 
+        // ------------------------
+        // snap-turn
+        // ------------------------
         AFRAME.registerComponent('snap-turn', {
         schema: { angle: { type: 'number', default: 30 }, cooldown: { type: 'number', default: 300 } },
         init: function () {
@@ -146,7 +148,7 @@
         });
 
         // ------------------------
-        // toggle-hold (comme tu avais)
+        // toggle-hold (fixed grab)
         // ------------------------
         AFRAME.registerComponent('toggle-hold', {
         schema: {
@@ -205,96 +207,77 @@
         });
 
         // ------------------------
-        // projectile component: handles physics + manual proximity checking
+        // projectile component: proximity fallback + safe collision handling
         // ------------------------
         AFRAME.registerComponent('projectile', {
         schema: {
-            speed: { type: 'number', default: 50 },
-            lifetime: { type: 'number', default: 3000 },
-            radius: { type: 'number', default: 0.03 }, // used for proximity test
-            checkInterval: { type: 'number', default: 16 } // ms between proximity checks
+            radius: { type: 'number', default: 0.04 }, // used to compute proximity threshold
+            checkInterval: { type: 'number', default: 20 } // ms between proximity checks
         },
         init: function () {
-            this._tickAccumulator = 0;
-            this._lastCheck = performance.now();
-            this.targetSelector = '.target';
-            this._onBodyLoaded = this._onBodyLoaded.bind(this);
+            this._acc = 0;
+            this._last = performance.now();
+
             this._onCollide = this._onCollide.bind(this);
-
-            this.el.addEventListener('body-loaded', this._onBodyLoaded);
             this.el.addEventListener('collide', this._onCollide);
-
-            // auto-remove after lifetime
-            setTimeout(() => {
-            if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
-            }, this.data.lifetime);
-        },
-        _onBodyLoaded: function () {
-            // nothing here because velocity is set from gun-shoot when created
         },
         _onCollide: function (evt) {
-            // safe handling: only remove target (not the bullet) and respawn
             const otherEl = evt.detail?.body?.el;
             if (!otherEl) return;
             if (otherEl.classList && otherEl.classList.contains('target')) {
-            // play hit sound if present
+            // play hit sound if exists on target
             const hitSound = otherEl.querySelector('.hitSound');
             if (hitSound?.components?.sound) {
-                try { hitSound.components.sound.stopSound(); } catch (e) {}
-                try { hitSound.components.sound.playSound(); } catch (e) { console.warn('hit play error', e); }
+                try { hitSound.components.sound.playSound(); } catch (e) { /* ignore */ }
             }
-            // remove target in next tick for safety and respawn
+            // remove target safely and respawn
             setTimeout(() => {
                 if (otherEl.parentNode) otherEl.parentNode.removeChild(otherEl);
                 spawnTarget();
             }, 0);
             }
         },
-        tick: function (t, dt) {
-            // do a cheap proximity check to avoid tunneling (check every checkInterval ms)
-            this._tickAccumulator += dt;
-            if (this._tickAccumulator < this.data.checkInterval) return;
-            this._tickAccumulator = 0;
+        tick: function (time, dt) {
+            this._acc += dt;
+            if (this._acc < this.data.checkInterval) return;
+            this._acc = 0;
 
             const scene = this.el.sceneEl;
             if (!scene) return;
-            const targets = scene.querySelectorAll(this.targetSelector);
+            const targets = scene.querySelectorAll('.target');
             if (!targets || targets.length === 0) return;
 
-            // get bullet world pos
+            // bullet pos
             const bPos = new THREE.Vector3();
             if (!this.el.object3D) return;
             this.el.object3D.getWorldPosition(bPos);
 
             for (let i = 0; i < targets.length; i++) {
             const target = targets[i];
-            // target world pos
-            const tPos = new THREE.Vector3();
             if (!target.object3D) continue;
+            const tPos = new THREE.Vector3();
             target.object3D.getWorldPosition(tPos);
-
             const dist = bPos.distanceTo(tPos);
-            // threshold: sum of radii + small margin
-            const threshold = (this.data.radius) + 0.25; // target half-size ~0.15, margin to be safe
+
+            // threshold: bullet radius + target half-diagonal margin
+            const threshold = this.data.radius + 0.25;
             if (dist <= threshold) {
-                // Hit detected by proximity fallback
+                // proximity hit => play sound, remove target, respawn, remove bullet
                 const hitSound = target.querySelector('.hitSound');
                 if (hitSound?.components?.sound) {
-                try { hitSound.components.sound.stopSound(); } catch (e) {}
-                try { hitSound.components.sound.playSound(); } catch (e) { console.warn('hit play error', e); }
+                try { hitSound.components.sound.playSound(); } catch (e) {}
                 }
-                // remove target and respawn, remove bullet
                 if (target.parentNode) target.parentNode.removeChild(target);
                 spawnTarget();
                 if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
-                return; // bullet removed — stop processing
+                return;
             }
             }
         }
         });
 
         // ------------------------
-        // gun-shoot component (creates projectile and sets velocity)
+        // gun-shoot component: create bullet, append BEFORE dynamic-body, set velocity robustly
         // ------------------------
         AFRAME.registerComponent('gun-shoot', {
         schema: {
@@ -323,54 +306,83 @@
             // play gun sound
             if (this.soundEntity?.components?.sound) {
             try { this.soundEntity.components.sound.stopSound(); } catch (e) {}
-            try { this.soundEntity.components.sound.playSound(); } catch (e) { console.warn('playSound error', e); }
+            try { this.soundEntity.components.sound.playSound(); } catch (e) {}
             }
 
-            // create bullet
+            // Create bullet entity
             const bullet = document.createElement('a-sphere');
             const radius = 0.04; // slightly larger to reduce tunneling
             bullet.setAttribute('radius', radius);
             bullet.setAttribute('color', 'yellow');
             bullet.setAttribute('shadow', 'cast: true');
-            bullet.setAttribute('dynamic-body', `mass:0.02; shape:sphere; sphereRadius:${radius}`);
-            bullet.classList.add('projectile');
-
-            // position at tracker muzzle
+            // don't set dynamic-body before append for more reliable body creation
+            // set initial position
             const worldPos = new THREE.Vector3();
             this.tracker.object3D.getWorldPosition(worldPos);
             bullet.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
+            bullet.classList.add('projectile');
 
-            // compute direction by tracker's world direction
+            // append to scene
+            this.el.sceneEl.appendChild(bullet);
+
+            // now add physics body (this will trigger body-loaded)
+            bullet.setAttribute('dynamic-body', `mass:0.03; shape:sphere; sphereRadius:${radius}`);
+
+            // compute direction from tracker (world direction)
             const direction = new THREE.Vector3(0, 0, -1);
             this.tracker.object3D.getWorldDirection(direction);
             direction.normalize();
 
-            // append to scene (so physics body created)
-            this.el.sceneEl.appendChild(bullet);
-
             const speed = this.data.speed;
-            // when physics body is ready, set velocity attribute (aframe-physics-system)
-            bullet.addEventListener('body-loaded', () => {
-            bullet.setAttribute('velocity', `${direction.x * speed} ${direction.y * speed} ${direction.z * speed}`);
-            });
+            // when body is ready, set velocity both via attribute and via cannon body if present
+            const setVelocity = () => {
+            const vx = direction.x * speed;
+            const vy = direction.y * speed;
+            const vz = direction.z * speed;
+            // set via aframe physics attribute (works with @c-frame/aframe-physics-system)
+            try { bullet.setAttribute('velocity', `${vx} ${vy} ${vz}`); } catch (e) {}
+            // and if Cannon body exists, set it explicitly
+            if (bullet.body) {
+                try {
+                if (typeof CANNON !== 'undefined' && bullet.body.velocity) {
+                    bullet.body.velocity.set(vx, vy, vz);
+                }
+                } catch (e) { /* ignore */ }
+            }
+            };
 
-            // add projectile behavior (handles proximity checks & collision removal)
-            bullet.setAttribute('projectile', `speed: ${speed}; lifetime: ${this.data.lifetime}; radius: ${radius}`);
+            // listen for body-loaded
+            const onBody = () => {
+            setVelocity();
+            // once body-loaded fired we can remove this listener
+            bullet.removeEventListener('body-loaded', onBody);
+            };
+            bullet.addEventListener('body-loaded', onBody);
 
-            // don't remove on collide here: projectile component handles collisions
+            // safety fallback: if body-loaded didn't fire quickly, try again after a short delay
+            setTimeout(() => {
+            if (!bullet.body) setVelocity();
+            }, 50);
+
+            // attach projectile behaviour (proximity checks + safe collide handling)
+            bullet.setAttribute('projectile', `radius: ${radius}; checkInterval: 20`);
+
+            // auto-remove after lifetime (in case not removed by collision)
+            setTimeout(() => {
+            if (bullet.parentNode) bullet.parentNode.removeChild(bullet);
+            }, this.data.lifetime);
         }
         });
 
         // ------------------------
-        // Target spawning (single target at a time) + respawn logic
+        // Target spawning (one target at a time) + sound
         // ------------------------
         function spawnTarget() {
         const scene = document.querySelector('a-scene');
         if (!scene) return;
 
-        // Remove any existing target
-        const existing = scene.querySelectorAll('.target');
-        existing.forEach(e => e.remove());
+        // Remove previous target
+        scene.querySelectorAll('.target').forEach(t => t.remove());
 
         const target = document.createElement('a-box');
         target.setAttribute('class', 'target');
@@ -379,7 +391,8 @@
         target.setAttribute('height', '0.3');
         target.setAttribute('width', '0.3');
         target.setAttribute('shadow', 'cast: true; receive: true');
-        // static-body is fine, but use dynamic-body with mass 0 to ensure body exists reliably:
+
+        // create a physics body reliably (dynamic mass:0 ensures body exists and is static-like)
         target.setAttribute('dynamic-body', 'mass:0; shape:box');
 
         // attach hit sound entity (positional)
@@ -388,7 +401,7 @@
         sound.setAttribute('sound', 'src: #hitSound; autoplay: false; positional: true; loop: false');
         target.appendChild(sound);
 
-        // random position in front of player
+        // position randomly in front of player
         const x = (Math.random() - 0.5) * 8;     // -4 .. 4
         const y = 1 + Math.random() * 1.5;       // 1 .. 2.5
         const z = -3 - Math.random() * 6;        // -3 .. -9
@@ -396,17 +409,15 @@
 
         scene.appendChild(target);
 
-        // small timeout to ensure physics body is created before interaction
-        setTimeout(() => {
-            // nothing else needed — projectile's body-loaded / tick will detect
-        }, 50);
+        // small delay so physics body is ready (protection)
+        setTimeout(() => {}, 50);
         }
 
-        // spawn initial target once DOM ready
+        // spawn first target after a short delay so scene & physics initialize
         document.addEventListener('DOMContentLoaded', () => {
-        // small delay to ensure scene and physics initialized
         setTimeout(spawnTarget, 200);
         });
+
         </script>
     </body>
 </html>
