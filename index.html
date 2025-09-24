@@ -2,6 +2,7 @@
 <html>
     <head>
         <meta charset="utf-8" />
+        <title>A-Frame — Gun Sound Loop Test</title>
 
         <!-- A-Frame -->
         <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
@@ -13,30 +14,46 @@
         }
         </script>
 
-        <!-- aframe-extras (sphere-collider) -->
+        <!-- extras & physics & super-hands -->
         <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.5.2/dist/aframe-extras.min.js"></script>
-
-        <!-- Physics system -->
         <script src="https://cdn.jsdelivr.net/npm/@c-frame/aframe-physics-system@4.2.3/dist/aframe-physics-system.min.js"></script>
-
-        <!-- super-hands -->
         <script src="https://unpkg.com/super-hands@3.0.5/dist/super-hands.min.js"></script>
 
-        <style>body{margin:0}</style>
+        <style>
+        body { margin: 0; }
+        /* petit bouton pour tester le son (UI overlay) */
+        #soundTestBtn {
+            position: fixed;
+            left: 12px;
+            top: 12px;
+            z-index: 9999;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-family: sans-serif;
+            cursor: pointer;
+        }
+        </style>
     </head>
 
     <body>
+        <!-- Bouton pour déclencher le test sonore (click requis par navigateur pour autoriser audio) -->
+        <button id="soundTestBtn">Start sound test</button>
+
         <a-scene
         physics="gravity: -9.81"
         shadow="type: pcfsoft"
         renderer="antialias: true"
         vr-mode-ui="enabled: true"
-        device-orientation-permission-ui="enabled: true"
-        >
+        device-orientation-permission-ui="enabled: true">
+
         <a-assets>
             <img id="sky" src="sky1.png">
             <a-asset-item id="gunModel" src="assets/scene.gltf"></a-asset-item>
-            <audio id="gunshot" src="assets/shot.mp3" preload="auto"></audio>
+            <!-- place ton fichier audio assets/shoot.mp3 -->
+            <audio id="shootSound" src="assets/shoot.mp3" preload="auto"></audio>
         </a-assets>
 
         <!-- Lights -->
@@ -44,7 +61,7 @@
         <a-entity light="type: directional; intensity: 0.8; castShadow: true" position="-2 4 -3"></a-entity>
 
         <!-- Rig + camera + hands -->
-        <a-entity id="rig" position="0 0.58 0" joystick-movement="speed: 2" snap-turn="angle: 30; cooldown: 300">
+        <a-entity id="rig" position="0 0.35 0" joystick-movement="speed: 2" snap-turn="angle: 30; cooldown: 300">
             <a-entity id="head" camera look-controls wasd-controls="enabled: false"></a-entity>
 
             <a-entity id="leftHand"
@@ -66,7 +83,7 @@
         <a-plane position="0 0 0" rotation="-90 0 0" width="20" height="20"
                 color="#7BC8A4" static-body shadow="receive: true"></a-plane>
 
-        <!-- Table (supports gun but doesn't collide with hands) -->
+        <!-- Table -->
         <a-box id="table"
                 position="0 0.5 -3"
                 scale="2 0.7 2"
@@ -84,20 +101,52 @@
                     shadow
                     dynamic-body="mass: 1; shape: box"
                     toggle-hold="position: 0 -0.02 -0.04; rotation: 70 180 0"
-                    gun-shoot="speed: 50">
+                    gun-shoot="speed: 15">
             <!-- Tracker (muzzle) -->
             <a-entity id="tracker" position="-0.00293 0.0198 0.28446"></a-entity>
-            <a-entity id="shot" sound="src: #gunshot; autoplay: true"></a-entity>
+            <!-- Sound entity : loop true pour test -->
+            <a-entity id="gunSound" sound="src: #shootSound; autoplay: false; positional: true; loop: true"></a-entity>
         </a-entity>
 
         <a-sky src="#sky"></a-sky>
         </a-scene>
 
         <script>
-        // joystick-movement
+        // --- UI: bouton test son ---
+        (function () {
+            const btn = document.getElementById('soundTestBtn');
+            btn.addEventListener('click', () => {
+            const gun = document.querySelector('#gun');
+            const soundEntity = gun.querySelector('#gunSound');
+            if (soundEntity && soundEntity.components && soundEntity.components.sound) {
+                // on met en boucle et on joue
+                try {
+                soundEntity.components.sound.stopSound(); // au cas où
+                } catch (e) {}
+                // forcer loop (attribut) et jouer
+                soundEntity.setAttribute('sound', 'loop: true');
+                soundEntity.components.sound.playSound();
+                console.log('Sound test: playSound() called (loop=true)');
+                btn.textContent = 'Sound looping — Stop test';
+                // bascule pour permettre stop
+                btn.onclick = () => {
+                try { soundEntity.components.sound.stopSound(); } catch (e) {}
+                soundEntity.setAttribute('sound', 'loop: false');
+                btn.textContent = 'Start sound test';
+                // restore click handler
+                btn.onclick = null;
+                btn.addEventListener('click', arguments.callee);
+                };
+            } else {
+                console.warn('Sound entity not ready yet.');
+            }
+            });
+        })();
+
+        // --- joystick-movement (inchangé) ---
         AFRAME.registerComponent('joystick-movement', {
-        schema: { speed: { type: 'number', default: 2 } },
-        init: function () {
+            schema: { speed: { type: 'number', default: 2 } },
+            init: function () {
             const rig = document.querySelector('#rig');
             const head = document.querySelector('#head');
             const leftHand = document.querySelector('#leftHand');
@@ -106,28 +155,28 @@
             if (!leftHand) return;
 
             leftHand.addEventListener('thumbstickmoved', function (evt) {
-            const dx = evt.detail.x, dy = evt.detail.y;
-            if (Math.abs(dx) < DEADZONE && Math.abs(dy) < DEADZONE) return;
+                const dx = evt.detail.x, dy = evt.detail.y;
+                if (Math.abs(dx) < DEADZONE && Math.abs(dy) < DEADZONE) return;
 
-            const forward = new THREE.Vector3();
-            head.object3D.getWorldDirection(forward);
-            forward.y = 0; forward.normalize();
+                const forward = new THREE.Vector3();
+                head.object3D.getWorldDirection(forward);
+                forward.y = 0; forward.normalize();
 
-            const right = new THREE.Vector3();
-            right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).negate();
+                const right = new THREE.Vector3();
+                right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).negate();
 
-            const step = 0.05 * speed;
-            const rigPos = rig.object3D.position;
-            rigPos.addScaledVector(forward, dy * step);
-            rigPos.addScaledVector(right, dx * step);
+                const step = 0.05 * speed;
+                const rigPos = rig.object3D.position;
+                rigPos.addScaledVector(forward, dy * step);
+                rigPos.addScaledVector(right, dx * step);
             });
-        }
+            }
         });
 
-        // snap-turn
+        // --- snap-turn (inchangé) ---
         AFRAME.registerComponent('snap-turn', {
-        schema: { angle: { type: 'number', default: 30 }, cooldown: { type: 'number', default: 300 } },
-        init: function () {
+            schema: { angle: { type: 'number', default: 30 }, cooldown: { type: 'number', default: 300 } },
+            init: function () {
             const rig = document.querySelector('#rig');
             const rightHand = document.querySelector('#rightHand');
             const angle = this.data.angle;
@@ -136,23 +185,23 @@
             if (!rightHand) return;
 
             rightHand.addEventListener('thumbstickmoved', function (evt) {
-            const now = Date.now(), x = evt.detail.x;
-            if (Math.abs(x) < 0.8 || now - lastTurn < cooldown) return;
-            const rad = THREE.MathUtils.degToRad(angle);
-            if (x > 0.8) rig.object3D.rotation.y -= rad;
-            else rig.object3D.rotation.y += rad;
-            lastTurn = now;
+                const now = Date.now(), x = evt.detail.x;
+                if (Math.abs(x) < 0.8 || now - lastTurn < cooldown) return;
+                const rad = THREE.MathUtils.degToRad(angle);
+                if (x > 0.8) rig.object3D.rotation.y -= rad;
+                else rig.object3D.rotation.y += rad;
+                lastTurn = now;
             });
-        }
+            }
         });
 
-        // toggle-hold : fixed grab + hide hand using display:none
+        // --- toggle-hold : fixed grab + hide controller-model if possible ---
         AFRAME.registerComponent('toggle-hold', {
-        schema: {
+            schema: {
             position: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
             rotation: { type: 'vec3', default: { x: 0, y: 0, z: 0 } }
-        },
-        init: function () {
+            },
+            init: function () {
             this._held = false;
             this._handEl = null;
             this._savedDynamic = null;
@@ -161,103 +210,119 @@
             this._onGripDown = this._onGripDown.bind(this);
 
             this.el.addEventListener('grab-start', this._onGrabStart);
-        },
-        _onGrabStart: function (evt) {
-          if (this._held) return;
-          const hand = evt.detail?.hand;
-          if (!hand) return;
-        
-          // désactiver physique pour attacher
-          if (this.el.hasAttribute('dynamic-body')) {
-            this._savedDynamic = this.el.getAttribute('dynamic-body');
-            this.el.removeAttribute('dynamic-body');
-          }
-        
-          hand.object3D.attach(this.el.object3D);
-        
-          // appliquer position/rotation fixe
-          const pos = this.data.position;
-          this.el.object3D.position.set(pos.x, pos.y, pos.z);
-          const rot = this.data.rotation;
-          this.el.object3D.rotation.set(
-            THREE.MathUtils.degToRad(rot.x),
-            THREE.MathUtils.degToRad(rot.y),
-            THREE.MathUtils.degToRad(rot.z)
-          );
-        
-          // 🔹 cacher le modèle 3D du contrôleur
-          const model = hand.querySelector('.controller-model');
-          if (model) model.object3D.visible = false;
-        
-          this._held = true;
-          this._handEl = hand;
-        
-          hand.addEventListener('gripdown', this._onGripDown);
-        },
-        
-        _onGripDown: function () {
-          if (!this._held || !this._handEl) return;
-        
-          this._handEl.sceneEl.object3D.attach(this.el.object3D);
-        
-          if (this._savedDynamic) {
-            this.el.setAttribute('dynamic-body', this._savedDynamic);
-            this._savedDynamic = null;
-          }
-        
-          // 🔹 réafficher le modèle du contrôleur
-          const model = this._handEl.querySelector('.controller-model');
-          if (model) model.object3D.visible = true;
-        
-          this._handEl.removeEventListener('gripdown', this._onGripDown);
-        
-          this._held = false;
-          this._handEl = null;
-        }
+            },
+            _hideControllerModel: function (handEl) {
+            // chercher un descendant avec la classe controller-model générée par les contrôleurs
+            try {
+                const model = handEl.querySelector('.controller-model');
+                if (model && model.object3D) {
+                model.object3D.visible = false;
+                return true;
+                }
+            } catch (e) {}
+            return false;
+            },
+            _showControllerModel: function (handEl) {
+            try {
+                const model = handEl.querySelector('.controller-model');
+                if (model && model.object3D) model.object3D.visible = true;
+            } catch (e) {}
+            },
+            _onGrabStart: function (evt) {
+            if (this._held) return;
+            const hand = evt.detail?.hand;
+            if (!hand) return;
 
+            if (this.el.hasAttribute('dynamic-body')) {
+                this._savedDynamic = this.el.getAttribute('dynamic-body');
+                this.el.removeAttribute('dynamic-body');
+            }
+
+            hand.object3D.attach(this.el.object3D);
+
+            const pos = this.data.position;
+            this.el.object3D.position.set(pos.x, pos.y, pos.z);
+            const rot = this.data.rotation;
+            this.el.object3D.rotation.set(
+                THREE.MathUtils.degToRad(rot.x),
+                THREE.MathUtils.degToRad(rot.y),
+                THREE.MathUtils.degToRad(rot.z)
+            );
+
+            // essayer de cacher le modèle 3D du contrôleur proprement
+            const hid = this._hideControllerModel(hand);
+            // fallback: cacher le DOM si impossible
+            if (!hid) {
+                try { hand.style.display = 'none'; } catch (e) { hand.setAttribute('visible', 'false'); }
+            }
+
+            this._held = true;
+            this._handEl = hand;
+
+            hand.addEventListener('gripdown', this._onGripDown);
+            },
+            _onGripDown: function () {
+            if (!this._held || !this._handEl) return;
+
+            this._handEl.sceneEl.object3D.attach(this.el.object3D);
+
+            if (this._savedDynamic) {
+                this.el.setAttribute('dynamic-body', this._savedDynamic);
+                this._savedDynamic = null;
+            }
+
+            // restaurer visibilité modèle contrôleur ou DOM
+            this._showControllerModel(this._handEl);
+            try { this._handEl.style.display = ''; } catch (e) { this._handEl.setAttribute('visible', 'true'); }
+
+            this._handEl.removeEventListener('gripdown', this._onGripDown);
+
+            this._held = false;
+            this._handEl = null;
+            }
         });
 
-        // gun-shoot: spawn projectile using getWorldDirection of tracker, speed=50
+        // --- gun-shoot with sound playback and projectile spawning ---
         AFRAME.registerComponent('gun-shoot', {
-        schema: {
+            schema: {
             speed: { type: 'number', default: 15 },
             lifetime: { type: 'number', default: 3000 }
-        },
-        init: function () {
+            },
+            init: function () {
             this._onTriggerDown = this._onTriggerDown.bind(this);
             this.tracker = this.el.querySelector('#tracker');
+            this.soundEntity = this.el.querySelector('#gunSound');
 
             this.el.addEventListener('grab-start', evt => {
-            const hand = evt.detail?.hand;
-            if (hand) hand.addEventListener('triggerdown', this._onTriggerDown);
+                const hand = evt.detail?.hand;
+                if (hand) hand.addEventListener('triggerdown', this._onTriggerDown);
             });
-
             this.el.addEventListener('grab-end', evt => {
-            const hand = evt.detail?.hand;
-            if (hand) hand.removeEventListener('triggerdown', this._onTriggerDown);
+                const hand = evt.detail?.hand;
+                if (hand) hand.removeEventListener('triggerdown', this._onTriggerDown);
             });
-        },
-        _onTriggerDown: function () {
+            },
+            _onTriggerDown: function () {
             const th = this.el.components['toggle-hold'];
             if (!th || !th._held) return;
             if (!this.tracker) return;
 
-            if (this.soundEntity && this.soundEntity.components.sound) {
-                this.soundEntity.components.sound.playSound();
+            // jouer le son (si disponible)
+            if (this.soundEntity && this.soundEntity.components && this.soundEntity.components.sound) {
+                try { this.soundEntity.components.sound.playSound(); } catch (e) { console.warn('playSound error', e); }
             }
 
+            // spawn projectile
             const bullet = document.createElement('a-sphere');
             bullet.setAttribute('radius', 0.02);
             bullet.setAttribute('color', 'yellow');
             bullet.setAttribute('shadow', 'cast: true');
             bullet.setAttribute('dynamic-body', 'mass:0.02; shape:sphere; sphereRadius:0.02');
 
-            // spawn at tracker world position
             const worldPos = new THREE.Vector3();
             this.tracker.object3D.getWorldPosition(worldPos);
             bullet.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
 
-            // === compute direction using getWorldDirection as requested ===
             const direction = new THREE.Vector3(0, 0, -1);
             this.tracker.object3D.getWorldDirection(direction);
             direction.normalize();
@@ -266,14 +331,13 @@
 
             const speed = this.data.speed;
             bullet.addEventListener('body-loaded', () => {
-            bullet.setAttribute('velocity', `${direction.x * speed} ${direction.y * speed} ${direction.z * speed}`);
+                bullet.setAttribute('velocity', `${direction.x * speed} ${direction.y * speed} ${direction.z * speed}`);
             });
 
-            // cleanup
             setTimeout(() => {
-            if (bullet.parentNode) bullet.parentNode.removeChild(bullet);
+                if (bullet.parentNode) bullet.parentNode.removeChild(bullet);
             }, this.data.lifetime);
-        }
+            }
         });
         </script>
     </body>
