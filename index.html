@@ -201,7 +201,7 @@
             }
         });
 
-               // --- gun-shoot ---
+        // --- gun-shoot ---
         AFRAME.registerComponent('gun-shoot', {
             schema: {
                 speed: { type: 'number', default: 50 },
@@ -211,7 +211,7 @@
                 this._onTriggerDown = this._onTriggerDown.bind(this);
                 this.tracker = this.el.querySelector('#tracker');
                 this.soundEntity = this.el.querySelector('#gunSound');
-
+    
                 this.el.addEventListener('grab-start', evt => {
                     const hand = evt.detail?.hand;
                     if (hand) hand.addEventListener('triggerdown', this._onTriggerDown);
@@ -225,7 +225,7 @@
                 const th = this.el.components['toggle-hold'];
                 if (!th || !th._held) return;
                 if (!this.tracker) return;
-
+    
                 // jouer le son
                 if (this.soundEntity?.components?.sound) {
                     try {
@@ -233,52 +233,57 @@
                         this.soundEntity.components.sound.playSound();
                     } catch (e) { console.warn('playSound error', e); }
                 }
-
+    
                 // spawn projectile
                 const bullet = document.createElement('a-sphere');
                 bullet.setAttribute('radius', 0.02);
                 bullet.setAttribute('color', 'yellow');
                 bullet.setAttribute('shadow', 'cast: true');
                 bullet.setAttribute('dynamic-body', 'mass:0.02; shape:sphere; sphereRadius:0.02');
-
+    
                 const worldPos = new THREE.Vector3();
                 this.tracker.object3D.getWorldPosition(worldPos);
                 bullet.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
-
+    
                 const direction = new THREE.Vector3(0, 0, -1);
                 this.tracker.object3D.getWorldDirection(direction);
                 direction.normalize();
-
+    
                 this.el.sceneEl.appendChild(bullet);
-
+    
                 const speed = this.data.speed;
                 bullet.addEventListener('body-loaded', () => {
                     bullet.setAttribute('velocity', `${direction.x * speed} ${direction.y * speed} ${direction.z * speed}`);
                 });
-
-                // collision avec les cibles (safe)
+    
+                // collision avec la cible
                 bullet.addEventListener('collide', evt => {
                     const otherEl = evt.detail.body?.el;
                     if (otherEl && otherEl.classList.contains('target')) {
-                        // on supprime la cible en différé pour éviter le crash du moteur physique
+                        // supprimer la cible en différé pour éviter le crash
                         setTimeout(() => {
                             if (otherEl.parentNode) {
                                 otherEl.parentNode.removeChild(otherEl);
-                                // respawn une nouvelle cible
+                                // respawn UNE nouvelle cible
                                 spawnTarget();
                             }
                         }, 0);
                     }
                 });
-
+    
                 setTimeout(() => {
                     if (bullet.parentNode) bullet.parentNode.removeChild(bullet);
                 }, this.data.lifetime);
             }
         });
-
-        // --- fonction respawn cible ---
+    
+        // --- fonction respawn cible (une seule à la fois) ---
         function spawnTarget() {
+            const scene = document.querySelector('a-scene');
+    
+            // supprimer toute ancienne cible existante
+            scene.querySelectorAll('.target').forEach(t => t.remove());
+    
             const target = document.createElement('a-box');
             target.setAttribute('class', 'target');
             target.setAttribute('color', 'red');
@@ -286,29 +291,20 @@
             target.setAttribute('height', '0.3');
             target.setAttribute('width', '0.3');
             target.setAttribute('shadow', 'cast: true');
-            target.setAttribute('dynamic-body', 'mass:0');
-
+            target.setAttribute('dynamic-body', 'mass:0; shape:box');
+    
             const x = (Math.random() - 0.5) * 10;
             const y = 1 + Math.random() * 2;
             const z = -3 - Math.random() * 5;
             target.setAttribute('position', `${x} ${y} ${z}`);
-
-            document.querySelector('a-scene').appendChild(target);
+    
+            scene.appendChild(target);
         }
-
-        // --- target-spawner ---
-        AFRAME.registerComponent('target-spawner', {
-            schema: { count: {type: 'int', default: 5} },
-            init: function () {
-                for (let i = 0; i < this.data.count; i++) {
-                    spawnTarget();
-                }
-            }
+    
+        // spawn la première cible au démarrage
+        document.addEventListener('DOMContentLoaded', () => {
+            spawnTarget();
         });
-
-        // spawn les cibles au chargement
-        document.querySelector('a-scene').setAttribute('target-spawner', 'count: 10');
-
         </script>
     </body>
 </html>
