@@ -96,29 +96,29 @@
         AFRAME.registerComponent('joystick-movement', {
             schema: { speed: { type: 'number', default: 2 } },
             init: function () {
-            const rig = document.querySelector('#rig');
-            const head = document.querySelector('#head');
-            const leftHand = document.querySelector('#leftHand');
-            const speed = this.data.speed;
-            const DEADZONE = 0.1;
-            if (!leftHand) return;
+                const rig = document.querySelector('#rig');
+                const head = document.querySelector('#head');
+                const leftHand = document.querySelector('#leftHand');
+                const speed = this.data.speed;
+                const DEADZONE = 0.1;
+                if (!leftHand) return;
 
-            leftHand.addEventListener('thumbstickmoved', function (evt) {
-                const dx = evt.detail.x, dy = evt.detail.y;
-                if (Math.abs(dx) < DEADZONE && Math.abs(dy) < DEADZONE) return;
+                leftHand.addEventListener('thumbstickmoved', function (evt) {
+                    const dx = evt.detail.x, dy = evt.detail.y;
+                    if (Math.abs(dx) < DEADZONE && Math.abs(dy) < DEADZONE) return;
 
-                const forward = new THREE.Vector3();
-                head.object3D.getWorldDirection(forward);
-                forward.y = 0; forward.normalize();
+                    const forward = new THREE.Vector3();
+                    head.object3D.getWorldDirection(forward);
+                    forward.y = 0; forward.normalize();
 
-                const right = new THREE.Vector3();
-                right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).negate();
+                    const right = new THREE.Vector3();
+                    right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).negate();
 
-                const step = 0.05 * speed;
-                const rigPos = rig.object3D.position;
-                rigPos.addScaledVector(forward, dy * step);
-                rigPos.addScaledVector(right, dx * step);
-            });
+                    const step = 0.05 * speed;
+                    const rigPos = rig.object3D.position;
+                    rigPos.addScaledVector(forward, dy * step);
+                    rigPos.addScaledVector(right, dx * step);
+                });
             }
         });
 
@@ -126,141 +126,177 @@
         AFRAME.registerComponent('snap-turn', {
             schema: { angle: { type: 'number', default: 30 }, cooldown: { type: 'number', default: 300 } },
             init: function () {
-            const rig = document.querySelector('#rig');
-            const rightHand = document.querySelector('#rightHand');
-            const angle = this.data.angle;
-            const cooldown = this.data.cooldown;
-            let lastTurn = 0;
-            if (!rightHand) return;
+                const rig = document.querySelector('#rig');
+                const rightHand = document.querySelector('#rightHand');
+                const angle = this.data.angle;
+                const cooldown = this.data.cooldown;
+                let lastTurn = 0;
+                if (!rightHand) return;
 
-            rightHand.addEventListener('thumbstickmoved', function (evt) {
-                const now = Date.now(), x = evt.detail.x;
-                if (Math.abs(x) < 0.8 || now - lastTurn < cooldown) return;
-                const rad = THREE.MathUtils.degToRad(angle);
-                if (x > 0.8) rig.object3D.rotation.y -= rad;
-                else rig.object3D.rotation.y += rad;
-                lastTurn = now;
-            });
+                rightHand.addEventListener('thumbstickmoved', function (evt) {
+                    const now = Date.now(), x = evt.detail.x;
+                    if (Math.abs(x) < 0.8 || now - lastTurn < cooldown) return;
+                    const rad = THREE.MathUtils.degToRad(angle);
+                    if (x > 0.8) rig.object3D.rotation.y -= rad;
+                    else rig.object3D.rotation.y += rad;
+                    lastTurn = now;
+                });
             }
         });
 
         // --- toggle-hold ---
         AFRAME.registerComponent('toggle-hold', {
             schema: {
-            position: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
-            rotation: { type: 'vec3', default: { x: 0, y: 0, z: 0 } }
+                position: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
+                rotation: { type: 'vec3', default: { x: 0, y: 0, z: 0 } }
             },
             init: function () {
-            this._held = false;
-            this._handEl = null;
-            this._savedDynamic = null;
+                this._held = false;
+                this._handEl = null;
+                this._savedDynamic = null;
 
-            this._onGrabStart = this._onGrabStart.bind(this);
-            this._onGripDown = this._onGripDown.bind(this);
+                this._onGrabStart = this._onGrabStart.bind(this);
+                this._onGripDown = this._onGripDown.bind(this);
 
-            this.el.addEventListener('grab-start', this._onGrabStart);
+                this.el.addEventListener('grab-start', this._onGrabStart);
             },
             _onGrabStart: function (evt) {
-            if (this._held) return;
-            const hand = evt.detail?.hand;
-            if (!hand) return;
+                if (this._held) return;
+                const hand = evt.detail?.hand;
+                if (!hand) return;
 
-            if (this.el.hasAttribute('dynamic-body')) {
-                this._savedDynamic = this.el.getAttribute('dynamic-body');
-                this.el.removeAttribute('dynamic-body');
-            }
+                if (this.el.hasAttribute('dynamic-body')) {
+                    this._savedDynamic = this.el.getAttribute('dynamic-body');
+                    this.el.removeAttribute('dynamic-body');
+                }
 
-            hand.object3D.attach(this.el.object3D);
+                hand.object3D.attach(this.el.object3D);
 
-            const pos = this.data.position;
-            this.el.object3D.position.set(pos.x, pos.y, pos.z);
-            const rot = this.data.rotation;
-            this.el.object3D.rotation.set(
-                THREE.MathUtils.degToRad(rot.x),
-                THREE.MathUtils.degToRad(rot.y),
-                THREE.MathUtils.degToRad(rot.z)
-            );
+                const pos = this.data.position;
+                this.el.object3D.position.set(pos.x, pos.y, pos.z);
+                const rot = this.data.rotation;
+                this.el.object3D.rotation.set(
+                    THREE.MathUtils.degToRad(rot.x),
+                    THREE.MathUtils.degToRad(rot.y),
+                    THREE.MathUtils.degToRad(rot.z)
+                );
 
-            this._held = true;
-            this._handEl = hand;
-            hand.addEventListener('gripdown', this._onGripDown);
+                this._held = true;
+                this._handEl = hand;
+                hand.addEventListener('gripdown', this._onGripDown);
             },
             _onGripDown: function () {
-            if (!this._held || !this._handEl) return;
+                if (!this._held || !this._handEl) return;
 
-            this._handEl.sceneEl.object3D.attach(this.el.object3D);
+                this._handEl.sceneEl.object3D.attach(this.el.object3D);
 
-            if (this._savedDynamic) {
-                this.el.setAttribute('dynamic-body', this._savedDynamic);
-                this._savedDynamic = null;
-            }
+                if (this._savedDynamic) {
+                    this.el.setAttribute('dynamic-body', this._savedDynamic);
+                    this._savedDynamic = null;
+                }
 
-            this._handEl.removeEventListener('gripdown', this._onGripDown);
-            this._held = false;
-            this._handEl = null;
+                this._handEl.removeEventListener('gripdown', this._onGripDown);
+                this._held = false;
+                this._handEl = null;
             }
         });
 
         // --- gun-shoot ---
         AFRAME.registerComponent('gun-shoot', {
             schema: {
-            speed: { type: 'number', default: 20 },
-            lifetime: { type: 'number', default: 3000 }
+                speed: { type: 'number', default: 20 },
+                lifetime: { type: 'number', default: 3000 }
             },
             init: function () {
-            this._onTriggerDown = this._onTriggerDown.bind(this);
-            this.tracker = this.el.querySelector('#tracker');
-            this.soundEntity = this.el.querySelector('#gunSound');
+                this._onTriggerDown = this._onTriggerDown.bind(this);
+                this.tracker = this.el.querySelector('#tracker');
+                this.soundEntity = this.el.querySelector('#gunSound');
 
-            this.el.addEventListener('grab-start', evt => {
-                const hand = evt.detail?.hand;
-                if (hand) hand.addEventListener('triggerdown', this._onTriggerDown);
-            });
-            this.el.addEventListener('grab-end', evt => {
-                const hand = evt.detail?.hand;
-                if (hand) hand.removeEventListener('triggerdown', this._onTriggerDown);
-            });
+                this.el.addEventListener('grab-start', evt => {
+                    const hand = evt.detail?.hand;
+                    if (hand) hand.addEventListener('triggerdown', this._onTriggerDown);
+                });
+                this.el.addEventListener('grab-end', evt => {
+                    const hand = evt.detail?.hand;
+                    if (hand) hand.removeEventListener('triggerdown', this._onTriggerDown);
+                });
             },
             _onTriggerDown: function () {
-            const th = this.el.components['toggle-hold'];
-            if (!th || !th._held) return;
-            if (!this.tracker) return;
+                const th = this.el.components['toggle-hold'];
+                if (!th || !th._held) return;
+                if (!this.tracker) return;
 
-            // jouer le son
-            if (this.soundEntity && this.soundEntity.components && this.soundEntity.components.sound) {
-                try {
-                this.soundEntity.components.sound.stopSound();
-                this.soundEntity.components.sound.playSound();
-                } catch (e) { console.warn('playSound error', e); }
-            }
+                // jouer le son
+                if (this.soundEntity && this.soundEntity.components && this.soundEntity.components.sound) {
+                    try {
+                        this.soundEntity.components.sound.stopSound();
+                        this.soundEntity.components.sound.playSound();
+                    } catch (e) { console.warn('playSound error', e); }
+                }
 
-            // spawn projectile
-            const bullet = document.createElement('a-sphere');
-            bullet.setAttribute('radius', 0.02);
-            bullet.setAttribute('color', 'yellow');
-            bullet.setAttribute('shadow', 'cast: true');
-            bullet.setAttribute('dynamic-body', 'mass:0.02; shape:sphere; sphereRadius:0.02');
+                // spawn projectile
+                const bullet = document.createElement('a-sphere');
+                bullet.setAttribute('radius', 0.02);
+                bullet.setAttribute('color', 'yellow');
+                bullet.setAttribute('shadow', 'cast: true');
+                bullet.setAttribute('dynamic-body', 'mass:0.02; shape:sphere; sphereRadius:0.02');
 
-            const worldPos = new THREE.Vector3();
-            this.tracker.object3D.getWorldPosition(worldPos);
-            bullet.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
+                const worldPos = new THREE.Vector3();
+                this.tracker.object3D.getWorldPosition(worldPos);
+                bullet.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
 
-            const direction = new THREE.Vector3(0, 0, -1);
-            this.tracker.object3D.getWorldDirection(direction);
-            direction.normalize();
+                const direction = new THREE.Vector3(0, 0, -1);
+                this.tracker.object3D.getWorldDirection(direction);
+                direction.normalize();
 
-            this.el.sceneEl.appendChild(bullet);
+                this.el.sceneEl.appendChild(bullet);
 
-            const speed = this.data.speed;
-            bullet.addEventListener('body-loaded', () => {
-                bullet.setAttribute('velocity', `${direction.x * speed} ${direction.y * speed} ${direction.z * speed}`);
-            });
+                const speed = this.data.speed;
+                bullet.addEventListener('body-loaded', () => {
+                    bullet.setAttribute('velocity', `${direction.x * speed} ${direction.y * speed} ${direction.z * speed}`);
+                });
 
-            setTimeout(() => {
-                if (bullet.parentNode) bullet.parentNode.removeChild(bullet);
-            }, this.data.lifetime);
+                // collision avec les cibles
+                bullet.addEventListener('collide', evt => {
+                    const otherEl = evt.detail.body.el;
+                    if (otherEl && otherEl.classList.contains('target')) {
+                        otherEl.parentNode.removeChild(otherEl); // supprime juste la cible
+                    }
+                });
+
+                setTimeout(() => {
+                    if (bullet.parentNode) bullet.parentNode.removeChild(bullet);
+                }, this.data.lifetime);
             }
         });
+
+        // --- target-spawner ---
+        AFRAME.registerComponent('target-spawner', {
+            schema: { count: {type: 'int', default: 5} },
+            init: function () {
+                for (let i = 0; i < this.data.count; i++) {
+                    const target = document.createElement('a-box');
+                    target.setAttribute('class', 'target');
+                    target.setAttribute('color', 'red');
+                    target.setAttribute('depth', '0.3');
+                    target.setAttribute('height', '0.3');
+                    target.setAttribute('width', '0.3');
+                    target.setAttribute('shadow', 'cast: true');
+                    target.setAttribute('dynamic-body', 'mass:0');
+
+                    const x = (Math.random() - 0.5) * 10;
+                    const y = 1 + Math.random() * 2;
+                    const z = -3 - Math.random() * 5;
+                    target.setAttribute('position', `${x} ${y} ${z}`);
+
+                    this.el.appendChild(target);
+                }
+            }
+        });
+
+        // spawn les cibles au chargement
+        document.querySelector('a-scene').setAttribute('target-spawner', 'count: 10');
         </script>
     </body>
 </html>
+
