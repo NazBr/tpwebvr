@@ -2,7 +2,6 @@
 <html>
     <head>
         <meta charset="utf-8" />
-        <title>A-Frame — Gun Sound Loop Test</title>
 
         <!-- A-Frame -->
         <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
@@ -19,29 +18,10 @@
         <script src="https://cdn.jsdelivr.net/npm/@c-frame/aframe-physics-system@4.2.3/dist/aframe-physics-system.min.js"></script>
         <script src="https://unpkg.com/super-hands@3.0.5/dist/super-hands.min.js"></script>
 
-        <style>
-        body { margin: 0; }
-        /* petit bouton pour tester le son (UI overlay) */
-        #soundTestBtn {
-            position: fixed;
-            left: 12px;
-            top: 12px;
-            z-index: 9999;
-            padding: 8px 12px;
-            background: rgba(0,0,0,0.7);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-family: sans-serif;
-            cursor: pointer;
-        }
-        </style>
+        <style>body { margin: 0; }</style>
     </head>
 
     <body>
-        <!-- Bouton pour déclencher le test sonore (click requis par navigateur pour autoriser audio) -->
-        <button id="soundTestBtn">Start sound test</button>
-
         <a-scene
         physics="gravity: -9.81"
         shadow="type: pcfsoft"
@@ -52,6 +32,7 @@
         <a-assets>
             <img id="sky" src="sky1.png">
             <a-asset-item id="gunModel" src="assets/scene.gltf"></a-asset-item>
+            <!-- place ton fichier audio assets/shoot.mp3 -->
             <audio id="shootSound" src="assets/shot.mp3" preload="auto"></audio>
         </a-assets>
 
@@ -60,7 +41,7 @@
         <a-entity light="type: directional; intensity: 0.8; castShadow: true" position="-2 4 -3"></a-entity>
 
         <!-- Rig + camera + hands -->
-        <a-entity id="rig" position="0 0.35 0" joystick-movement="speed: 2" snap-turn="angle: 30; cooldown: 300">
+        <a-entity id="rig" position="0 0.58 0" joystick-movement="speed: 2" snap-turn="angle: 30; cooldown: 300">
             <a-entity id="head" camera look-controls wasd-controls="enabled: false"></a-entity>
 
             <a-entity id="leftHand"
@@ -100,49 +81,18 @@
                     shadow
                     dynamic-body="mass: 1; shape: box"
                     toggle-hold="position: 0 -0.02 -0.04; rotation: 70 180 0"
-                    gun-shoot="speed: 15">
+                    gun-shoot="speed: 50">
             <!-- Tracker (muzzle) -->
             <a-entity id="tracker" position="-0.00293 0.0198 0.28446"></a-entity>
-            <!-- Sound entity : loop true pour test -->
-            <a-entity id="gunSound" sound="src: #shootSound; autoplay: false; positional: true; loop: true"></a-entity>
+            <!-- Sound entity -->
+            <a-entity id="gunSound" sound="src: #shootSound; autoplay: false; positional: true; loop: false"></a-entity>
         </a-entity>
 
         <a-sky src="#sky"></a-sky>
         </a-scene>
 
         <script>
-        // --- UI: bouton test son ---
-        (function () {
-            const btn = document.getElementById('soundTestBtn');
-            btn.addEventListener('click', () => {
-            const gun = document.querySelector('#gun');
-            const soundEntity = gun.querySelector('#gunSound');
-            if (soundEntity && soundEntity.components && soundEntity.components.sound) {
-                // on met en boucle et on joue
-                try {
-                soundEntity.components.sound.stopSound(); // au cas où
-                } catch (e) {}
-                // forcer loop (attribut) et jouer
-                soundEntity.setAttribute('sound', 'loop: true');
-                soundEntity.components.sound.playSound();
-                console.log('Sound test: playSound() called (loop=true)');
-                btn.textContent = 'Sound looping — Stop test';
-                // bascule pour permettre stop
-                btn.onclick = () => {
-                try { soundEntity.components.sound.stopSound(); } catch (e) {}
-                soundEntity.setAttribute('sound', 'loop: false');
-                btn.textContent = 'Start sound test';
-                // restore click handler
-                btn.onclick = null;
-                btn.addEventListener('click', arguments.callee);
-                };
-            } else {
-                console.warn('Sound entity not ready yet.');
-            }
-            });
-        })();
-
-        // --- joystick-movement (inchangé) ---
+        // --- joystick-movement ---
         AFRAME.registerComponent('joystick-movement', {
             schema: { speed: { type: 'number', default: 2 } },
             init: function () {
@@ -172,7 +122,7 @@
             }
         });
 
-        // --- snap-turn (inchangé) ---
+        // --- snap-turn ---
         AFRAME.registerComponent('snap-turn', {
             schema: { angle: { type: 'number', default: 30 }, cooldown: { type: 'number', default: 300 } },
             init: function () {
@@ -194,7 +144,7 @@
             }
         });
 
-        // --- toggle-hold : fixed grab + hide controller-model if possible ---
+        // --- toggle-hold ---
         AFRAME.registerComponent('toggle-hold', {
             schema: {
             position: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
@@ -209,23 +159,6 @@
             this._onGripDown = this._onGripDown.bind(this);
 
             this.el.addEventListener('grab-start', this._onGrabStart);
-            },
-            _hideControllerModel: function (handEl) {
-            // chercher un descendant avec la classe controller-model générée par les contrôleurs
-            try {
-                const model = handEl.querySelector('.controller-model');
-                if (model && model.object3D) {
-                model.object3D.visible = false;
-                return true;
-                }
-            } catch (e) {}
-            return false;
-            },
-            _showControllerModel: function (handEl) {
-            try {
-                const model = handEl.querySelector('.controller-model');
-                if (model && model.object3D) model.object3D.visible = true;
-            } catch (e) {}
             },
             _onGrabStart: function (evt) {
             if (this._held) return;
@@ -248,16 +181,8 @@
                 THREE.MathUtils.degToRad(rot.z)
             );
 
-            // essayer de cacher le modèle 3D du contrôleur proprement
-            const hid = this._hideControllerModel(hand);
-            // fallback: cacher le DOM si impossible
-            if (!hid) {
-                try { hand.style.display = 'none'; } catch (e) { hand.setAttribute('visible', 'false'); }
-            }
-
             this._held = true;
             this._handEl = hand;
-
             hand.addEventListener('gripdown', this._onGripDown);
             },
             _onGripDown: function () {
@@ -270,21 +195,16 @@
                 this._savedDynamic = null;
             }
 
-            // restaurer visibilité modèle contrôleur ou DOM
-            this._showControllerModel(this._handEl);
-            try { this._handEl.style.display = ''; } catch (e) { this._handEl.setAttribute('visible', 'true'); }
-
             this._handEl.removeEventListener('gripdown', this._onGripDown);
-
             this._held = false;
             this._handEl = null;
             }
         });
 
-        // --- gun-shoot with sound playback and projectile spawning ---
+        // --- gun-shoot ---
         AFRAME.registerComponent('gun-shoot', {
             schema: {
-            speed: { type: 'number', default: 15 },
+            speed: { type: 'number', default: 50 },
             lifetime: { type: 'number', default: 3000 }
             },
             init: function () {
@@ -306,9 +226,12 @@
             if (!th || !th._held) return;
             if (!this.tracker) return;
 
-            // jouer le son (si disponible)
+            // jouer le son
             if (this.soundEntity && this.soundEntity.components && this.soundEntity.components.sound) {
-                try { this.soundEntity.components.sound.playSound(); } catch (e) { console.warn('playSound error', e); }
+                try {
+                this.soundEntity.components.sound.stopSound();
+                this.soundEntity.components.sound.playSound();
+                } catch (e) { console.warn('playSound error', e); }
             }
 
             // spawn projectile
