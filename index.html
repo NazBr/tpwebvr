@@ -48,13 +48,13 @@
             <a-entity id="head" camera look-controls wasd-controls="enabled: false"></a-entity>
 
             <a-entity id="leftHand"
-                    oculus-touch-controls="hand: left"
+                    oculus-touch-controls="hand: left; handModelStyle: lowPoly; color: #ffcccc"
                     super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
                     sphere-collider="objects: .grabbable"
                     static-body="shape: sphere; sphereRadius: 0.03">
             </a-entity>
 
-            <a-entity id="rightHand"
+            <a-entity id="rightHand; handModelStyle: lowPoly; color: #ffcccc"
                     oculus-touch-controls="hand: right"
                     super-hands="grabStartButtons: gripdown, squeezestart; grabEndButtons: gripup, squeezeend"
                     sphere-collider="objects: .grabbable"
@@ -227,7 +227,7 @@
         // gun-shoot: spawn projectile using getWorldDirection of tracker, speed=50
         AFRAME.registerComponent('gun-shoot', {
         schema: {
-            speed: { type: 'number', default: 20 },
+            speed: { type: 'number', default: 15 },
             lifetime: { type: 'number', default: 3000 }
         },
         init: function () {
