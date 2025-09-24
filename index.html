@@ -81,7 +81,7 @@
                     shadow
                     dynamic-body="mass: 1; shape: box"
                     toggle-hold="position: 0 -0.02 -0.04; rotation: 70 180 0"
-                    gun-shoot="speed: 50">
+                    gun-shoot="speed: 20">
             <!-- Tracker (muzzle) -->
             <a-entity id="tracker" position="-0.00293 0.0198 0.28446"></a-entity>
             <!-- Sound entity -->
@@ -204,7 +204,7 @@
         // --- gun-shoot ---
         AFRAME.registerComponent('gun-shoot', {
             schema: {
-                speed: { type: 'number', default: 50 },
+                speed: { type: 'number', default: 20 },
                 lifetime: { type: 'number', default: 3000 }
             },
             init: function () {
@@ -236,7 +236,7 @@
 
                 // spawn projectile
                 const bullet = document.createElement('a-sphere');
-                bullet.setAttribute('radius', 0.02);
+                bullet.setAttribute('radius', 0.05);
                 bullet.setAttribute('color', 'yellow');
                 bullet.setAttribute('shadow', 'cast: true');
                 bullet.setAttribute('dynamic-body', 'mass:0.02; shape:sphere; sphereRadius:0.02');
